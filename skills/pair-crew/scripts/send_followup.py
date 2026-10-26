@@ -185,8 +185,69 @@ def send_with_fallback(q: Page, ide: str, chat_id_: str, n_before: int) -> tuple
     return False, n
 
 
-def _extract_text(q: Page) -> str:
-    return q.eval_js("document.body.innerText") or ""
+def fill_editor(q: Page, text: str) -> bool:
+    """把文本写进输入框。
+
+    两级策略，**顺序不能反**：
+
+    1. `Input.insertText`（CDP 原生输入）：走浏览器的真实输入通道，会触发 `input`
+       事件，React 受控组件能收到。这是首选。
+    2. `document.execCommand('insertText')`（DOM 兜底）：只改 DOM，**不触发 React
+       的 onChange**。很多编辑器里看着有字，但组件 state 仍是空，点发送等于发空消息，
+       表现为「fill: OK、按钮点到了、数据库一条没增」。
+
+    实测 Qoder 的 `.loop-rich-editor` 就属于第 2 类坑，exeCommand 那条路走不通。
+    """
+    # 聚焦并清空
+    focused = q.eval_js(
+        "(() => {"
+        " const eds=[...document.querySelectorAll('.loop-rich-editor,[contenteditable=true],"
+        "[contenteditable=\"true\"]')].filter(e=>e.offsetHeight>0);"
+        " if(!eds.length) return 'NO_INPUT';"
+        " const ed=eds[eds.length-1]; ed.focus();"
+        " const sel=window.getSelection(); const r=document.createRange();"
+        " r.selectNodeContents(ed); sel.removeAllRanges(); sel.addRange(r);"
+        " return 'OK';"
+        " })()"
+    )
+    if focused != "OK":
+        print("fill: NO_INPUT")
+        return False
+    # 先删掉旧内容，避免和之前失败的残留拼接
+    q.cmd("Input.dispatchKeyEvent", type="keyDown", key="Delete",
+          code="Delete", windowsVirtualKeyCode=46, nativeVirtualKeyCode=46)
+    q.cmd("Input.dispatchKeyEvent", type="keyUp", key="Delete",
+          code="Delete", windowsVirtualKeyCode=46, nativeVirtualKeyCode=46)
+    time.sleep(0.3)
+
+    try:
+        q.cmd("Input.insertText", text=text)
+        time.sleep(0.6)
+        n = q.eval_js(
+            "(() => { const eds=[...document.querySelectorAll('.loop-rich-editor,"
+            "[contenteditable=true],[contenteditable=\"true\"]')].filter(e=>e.offsetHeight>0);"
+            " if(!eds.length) return 0; return (eds[eds.length-1].innerText||'').length; })()"
+        )
+        print(f"fill: Input.insertText -> 编辑器内文本长度 {n}")
+        if isinstance(n, int) and n > 20:
+            return True
+    except Exception as e:
+        print(f"fill: Input.insertText 失败({e})，退回 execCommand")
+
+    r = q.eval_js(
+        "(() => {"
+        " const eds=[...document.querySelectorAll('.loop-rich-editor,[contenteditable=true],"
+        "[contenteditable=\"true\"]')].filter(e=>e.offsetHeight>0);"
+        " if(!eds.length) return 'NO_INPUT';"
+        " const ed=eds[eds.length-1]; ed.focus();"
+        " const sel=window.getSelection(); const r=document.createRange();"
+        " r.selectNodeContents(ed); r.collapse(false); sel.removeAllRanges(); sel.addRange(r);"
+        " document.execCommand('insertText', false, " + json.dumps(text, ensure_ascii=False) + ");"
+        " return 'OK';"
+        " })()"
+    )
+    print("fill: execCommand ->", r)
+    return r == "OK"
 
 
 def first_page(port):
@@ -258,12 +319,19 @@ def main():
     if args.switch_to:
         r = q.eval_js(JS_CLICK_TITLE % json.dumps(args.switch_to, ensure_ascii=False))
         print("切换会话:", r)
-        if r != "NOT_FOUND":
+        if r == "NOT_FOUND":
+            print(f"!! 侧栏里找不到「{args.switch_to}」，保持当前会话")
+        else:
             d = json.loads(r)
             click(q, d["x"], d["y"])
             time.sleep(3)
-            after_switch = chat_id(q)
-            print(f"  chat id: {before[:12]}… -> {after_switch[:12]}…")
+            switched = chat_id(q)
+            print(f"  切换前 chat id: {before[:12]}…")
+            print(f"  切换后 chat id: {switched[:12]}…")
+            if switched != before:
+                before = switched      # ← 必须更新，后续校验和落库比对的基准都靠它
+            else:
+                print("  !! 点完 chat id 没变，切换没生效（侧栏项可能在视口外或不可点）")
 
     # 2) 归属校验：按 chat id 查数据库里的**真实标题**，不看页面文本。
     #    页面 innerText 含整个侧栏，按文本匹配会把侧栏里别的会话名当成当前会话
@@ -292,22 +360,9 @@ def main():
             q.close()
             return 2
 
-    # 3) 注入 + 回车
-    js = (
-        "(() => {"
-        " const eds=[...document.querySelectorAll('.loop-rich-editor,[contenteditable=true],"
-        "[contenteditable=\"true\"]')].filter(e=>e.offsetHeight>0);"
-        " if(!eds.length) return 'NO_INPUT';"
-        " const ed=eds[eds.length-1]; ed.focus();"
-        " const sel=window.getSelection(); const r=document.createRange();"
-        " r.selectNodeContents(ed); r.collapse(false); sel.removeAllRanges(); sel.addRange(r);"
-        " document.execCommand('insertText', false, " + json.dumps(text, ensure_ascii=False) + ");"
-        " return 'OK';"
-        " })()"
-    )
-    filled = q.eval_js(js)
-    print("fill:", filled)
-    if filled != "OK":
+    # 3) 注入（优先原生 Input.insertText）
+    if not fill_editor(q, text):
+        print("!! 输入框注入失败")
         q.close()
         return 1
 
