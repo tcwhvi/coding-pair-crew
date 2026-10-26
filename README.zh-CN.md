@@ -186,8 +186,10 @@ skills/pair-crew/
   templates/                # 启动单、交接包、路由、派发清单、契约模板
   scripts/
     routing_check.py        # 能力和 IDE 门禁
+    ide_guard.py            # 按绝对路径核对项目绑定（派发前必跑）
     send_qoder.py           # Qoder 参考适配器（CDP）
     send_zcode.py           # ZCode 参考适配器（CDP）
+    send_followup.py        # 向运行中的会话续写；校验会话归属并点掉排队按钮
 docs/
   multi-agent-pair-plan.md  # 设计思路、角色设计、测试分层、落地路线
 contracts/
@@ -238,6 +240,36 @@ contracts/
 | 人 | 确认启动单、批准派发、裁决 P0、合入 |
 
 `send_qoder.py` 和 `send_zcode.py` 是参考适配器，不是协议本身。它们通过 CDP 驱动 IDE 界面，并从 `external-review` skill（或 vendored 副本）加载本地 `cdp.py`。GUI 选择器很脆，IDE 一改版就要修，或者退回人工派发。契约流程本身不依赖适配器。
+
+### 两个会静默搞砸派发的 CDP 坑
+
+两个都是真实踩过的，现在已经在代码里上了门禁 —— 不要把它们删掉。
+
+**1. 项目归属不能按名字认。**
+旧适配器只判断「侧栏文本里含不含这个项目名」，然后往**当前打开的会话**里打字。当目标目录
+在那个 IDE 里从来没打开过时，任务会被静默送进一个完全无关的会话 —— 实测落到的那条 ZCode
+会话 `directory = E:\project_self\coding_skill\.mimocode`，而任务写的是 D 盘另一个仓库。
+适配器照样打印 `SENT`。
+
+现在 `ide_guard.require()` 按**绝对路径**核对，直接读 IDE 自己的库：
+ZCode 读 `~/.zcode/cli/db/db.sqlite` 的 `session.project_id` + `session.directory`，
+Qoder 读 `main.sqlite` 的 `workspaces.root_paths_json` + `chat_sessions.workspace_id`。
+排查用 `ide_guard.py --ide zcode --list` / `--sessions`。
+
+名字根本不可用：ZCode 的 `project_id` 由路径派生且会丢掉非 ASCII
+（`D:\projects\海豚屋` 和 `D:\projects\做课` 都塌成 `proj_d-projects`），
+Qoder 则可能出现同名工作区重复登记。
+
+**2. 插话按钮不叫「立即」。**
+agent 正在生成时，`insertText + Enter` 不会立刻执行，而是进排队队列，气泡上会多出一个
+按钮，必须点它才会插队。ZCode 叫 `立即`，**Qoder CN 叫 `插话`**。
+只匹配 `立即` 的适配器在 Qoder 上一个按钮也点不到，消息永远排在队尾，看起来像「没发出去」。
+`send_followup.py` 匹配 `立即 / 插话 / 立即发送 / 立即执行 / 打断 / 现在就发`，
+并且取**最靠下**那个，避免把历史残留按钮重新触发。
+
+`send_followup.py` 还会核对这次到底在跟哪个会话说话：传 `--switch-to <标题>` 或
+`--expect <标题关键词>`，发送前后比对 `chat id`，变了就直接报错，而不是报成功。
+
 
 `contracts/T-smoke-*` 里的通道冒烟覆盖 Qoder CN、Qoder 国际版、ZCode 和 WorkBuddy。它们验证的是工位能绑定到正确工作区、读契约、回报结果，不保证未来每个 IDE 版本都行为一致。
 

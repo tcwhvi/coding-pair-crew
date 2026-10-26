@@ -97,6 +97,12 @@ python skills/pair-crew/scripts/routing_check.py --routing .agents/ROUTING.yaml
 ### 5. 派发外部工具（每次先与用户确认）
 
 ```bash
+# 【前置门禁】先按绝对路径确认目标 IDE 里确实有这个项目
+python skills/pair-crew/scripts/ide_guard.py --ide zcode --path "D:\projects\xxx"
+python skills/pair-crew/scripts/ide_guard.py --ide qoder --path "D:\projects\xxx"
+python skills/pair-crew/scripts/ide_guard.py --ide zcode --list      # 看已绑定的目录
+python skills/pair-crew/scripts/ide_guard.py --ide qoder --sessions  # 看各会话绑的目录
+
 # Qoder CN / 国际版（指定端口）
 python skills/pair-crew/scripts/send_qoder.py --port 9222 \
   --project-name <项目名> --project-path <绝对路径> --text-file prompt.md
@@ -110,6 +116,13 @@ python ~/.agents/skills/external-review/scripts/review_dispatch.py \
   --to workbuddy --project-name <项目名> --project-path <绝对路径> --text-file prompt.md
 ```
 
+> **⚠ 归属门禁（真实事故）**：`send_zcode.py` / `send_qoder.py` 的旧逻辑只检查
+> 「侧栏文本里含不含这个项目名」，含就发到**当前打开的会话**。
+> 结果：目标目录在 ZCode 里根本不存在时，任务被静默发进当时开着的
+> `coding_skill` 会话（`directory = E:\project_self\coding_skill\.mimocode`），
+> 与用户要的项目毫无关系，而脚本一路打印 "SENT"。
+> 现在两个脚本都内置 `ide_guard.require()`，**按绝对路径核对，不存在直接拒绝并列出可用目录**。
+
 确认项：工具、项目名、路径、新建/续写、完全访问。
 
 ### 6. 读回
@@ -119,6 +132,21 @@ python ~/.agents/skills/external-review/scripts/read_review_replies.py \
   --only qoder --tail 8000 --project-path <绝对路径>
 # 或直接读 Worker UI / 其输出目录
 ```
+
+### 6.5 同一会话续写 / 催收尾
+
+`send_qoder.py` / `send_zcode.py` 只做「新建任务」。要在**已跑起来的会话**里补指令
+（补上下文、纠正方向、催它出结论），用 `send_followup.py`：
+
+```bash
+python skills/pair-crew/scripts/send_followup.py --port 9222 --text-file note.md
+python skills/pair-crew/scripts/send_followup.py --port 9224 --text-file note.md
+```
+
+> **⚠ 必须知道的坑**：对方 agent 正在生成时，消息不会立即执行，而是进**排队队列**，
+> 气泡上多出一个「立即」按钮。不点它，消息就一直排在队尾 —— 看起来像「发了没反应」。
+> `send_followup.py` 会主动点「立即」并轮询确认队列清空；
+> 如果你用的是别的注入方式，**发完一定要检查有没有「立即」**。
 
 ### 7. 评审收口
 
@@ -169,6 +197,8 @@ python ~/.agents/skills/external-review/scripts/read_review_replies.py \
 | 脚本 | 用途 |
 |---|---|
 | `scripts/routing_check.py` | 能力与 IDE 门禁 |
-| `scripts/send_qoder.py` | Qoder CN / 国际版派发（指定 CDP 端口） |
-| `scripts/send_zcode.py` | ZCode 派发 |
+| `scripts/ide_guard.py` | **按绝对路径**核对 IDE 里的项目绑定（派发前必跑） |
+| `scripts/send_qoder.py` | Qoder CN / 国际版派发（指定 CDP 端口，**新建任务**） |
+| `scripts/send_zcode.py` | ZCode 派发（**新建任务**） |
+| `scripts/send_followup.py` | **同一会话续写**；会话归属校验 + 自动点「插话/立即」把排队消息插队 |
 | `templates/*` | HANDOFF / ROUTING / STORY_KICKOFF / DISPATCH_CHECKLIST / contracts |

@@ -59,6 +59,16 @@ def main() -> int:
     prompt = open(args.text_file, "r", encoding="utf-8").read()
     prompt = f"项目根：{args.project_path}\n\n{prompt}"
 
+    # 【硬门禁】按**绝对路径**核对 Qoder 工作区是否绑定该目录。
+    # 只靠项目名不可靠：Qoder 里可能存在多个同名工作区（实测「捷安泊数据分析」
+    # 就登记了两次），无法用名字区分指向哪个路径。
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from ide_guard import require as require_project
+        require_project("qoder", args.project_path)
+    except ImportError:
+        print("!! 未找到 ide_guard.py，跳过工作区归属校验")
+
     target = pick_page(args.port)
     if not target:
         print("qoder: 无可用 page target")

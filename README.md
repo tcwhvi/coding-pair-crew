@@ -193,8 +193,10 @@ skills/pair-crew/
   templates/                # kickoff, handoff, routing, dispatch checklist, contract templates
   scripts/
     routing_check.py        # capability and IDE gate
+    ide_guard.py            # verify a project is bound to an absolute path (run before dispatch)
     send_qoder.py           # reference CDP adapter for Qoder
     send_zcode.py           # reference CDP adapter for ZCode
+    send_followup.py        # follow-up into a running session; verifies session, clicks queue button
 docs/
   multi-agent-pair-plan.md  # design rationale, role design, test layers, rollout plan
 contracts/
@@ -245,6 +247,38 @@ contracts/
 | A human | Confirms the kickoff, approves dispatches, arbitrates P0s, merges |
 
 `send_qoder.py` and `send_zcode.py` are reference adapters, not the protocol. They drive the IDE's UI over CDP and load a local `cdp.py` helper from the `external-review` skill (or a vendored copy). GUI selectors are brittle; when an IDE changes its UI, fix the adapter or dispatch manually. The contract flow does not depend on the adapter.
+
+### Two CDP pitfalls that silently corrupt a dispatch
+
+Both were hit in production use and are now guarded in code — do not remove the guards.
+
+**1. Project binding is not a project name.**
+The old adapters only checked "does the sidebar text contain this project name", then typed
+into the **currently open** session. When the target directory had never been opened in that
+IDE, the task was silently delivered to an unrelated session — the ZCode session it landed in
+had `directory = E:\project_self\coding_skill\.mimocode`, while the task was about a completely
+different repository on `D:`. The adapter still printed `SENT`.
+
+`ide_guard.require()` now resolves binding by absolute path, reading the IDE's own database:
+`~/.zcode/cli/db/db.sqlite` (`session.project_id` + `session.directory`) for ZCode, and
+`main.sqlite` (`workspaces.root_paths_json` + `chat_sessions.workspace_id`) for Qoder.
+Verify with `ide_guard.py --ide zcode --list` / `--sessions`. Name matching is unusable:
+ZCode derives `project_id` from the path and drops non-ASCII (`D:\projects\海豚屋` and
+`D:\projects\做课` both collapse to `proj_d-projects`), and Qoder can hold duplicate
+workspace rows with the same name.
+
+**2. The queue button is not called "立即".**
+When an agent is mid-generation, `insertText + Enter` does not execute the message — it joins
+a queue, and a button appears on the bubble that must be clicked to interrupt. ZCode calls it
+`立即`; **Qoder CN calls it `插话`**. An adapter that only matches `立即` never clicks anything
+on Qoder, so the message sits at the tail of the queue forever and looks unread.
+`send_followup.py` matches `立即 / 插话 / 立即发送 / 立即执行 / 打断 / 现在就发`, and clicks the
+lowest one so historical leftover buttons are not re-triggered.
+
+`send_followup.py` also verifies which session it is talking to: pass `--switch-to <title>`
+or `--expect <title substring>`, and it compares the `chat id` before and after sending —
+if the id changed, it fails loudly instead of reporting success.
+
 
 The channel smoke tests in `contracts/T-smoke-*` cover Qoder CN, Qoder international, ZCode, and WorkBuddy. They verify that a worker can bind to the right workspace, read the contract, and report back; they are not a guarantee that every future IDE version will behave.
 

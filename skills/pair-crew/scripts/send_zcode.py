@@ -66,6 +66,17 @@ def main() -> int:
     # 顶部注入绝对路径，降低工作区漂移
     prompt = f"项目根：{args.project_path}\n\n{prompt}"
 
+    # 【硬门禁】按**绝对路径**核对 ZCode 里有没有绑定该目录的项目。
+    # 旧逻辑只查「侧栏文本含不含项目名」，含就发到当前会话 —— 真实事故：
+    # 目标目录在 ZCode 里根本不存在，任务被静默发进当时开着的 coding_skill 会话，
+    # 会话 directory 是 E:\project_self\coding_skill\.mimocode，与目标毫无关系。
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from ide_guard import require as require_project
+        require_project("zcode", args.project_path)
+    except ImportError:
+        print("!! 未找到 ide_guard.py，跳过项目归属校验（有发错会话的风险）")
+
     t = first_page(args.port)
     if not t:
         print("zcode: 无可用页面")
