@@ -206,7 +206,7 @@ contracts/
 
 `worktrees/` is created at runtime and is gitignored. The board and handoff are file conventions, not a service; there is no daemon or database to run.
 
-## Quick start
+## Quick start(Just send the repository address to the agent so they can install it and tell you how to use it, then ignore the following content (●'◡'●).
 
 1. **Put the skill where your conductor can read it.** Use the repository as-is, copy `skills/pair-crew/` into your project's agent skills directory, or reference `SKILL.md` from `AGENTS.md` / `CLAUDE.md`.
 
