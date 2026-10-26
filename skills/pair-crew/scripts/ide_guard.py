@@ -169,6 +169,64 @@ def require(ide: str, path: str, hint: str = "") -> None:
     raise SystemExit("\n".join(lines))
 
 
+# ---------------- 会话身份（按 chat id 查真实标题） ----------------
+def session_title(ide: str, chat_id: str) -> dict:
+    """用 chat id 反查会话的真实标题和所属工作区。
+
+    这是唯一可靠的「我在跟谁说话」判定方式：
+    页面上 `document.body.innerText` 含会话侧栏，按文本匹配会把侧栏里的
+    别的会话名当成当前会话（实测踩过：消息被发进「查找TTFT插件」）。
+    """
+    chat_id = (chat_id or "").strip()
+    if not chat_id:
+        return {}
+    if ide == "qoder":
+        for db in QODER_DBS:
+            if not os.path.isfile(db):
+                continue
+            con = _ro(db)
+            c = con.cursor()
+            c.execute(
+                "SELECT s.title, s.workspace_id, w.name, w.root_paths_json "
+                "FROM chat_sessions s LEFT JOIN workspaces w ON w.workspace_id = s.workspace_id "
+                "WHERE s.session_id = ?",
+                (chat_id,),
+            )
+            r = c.fetchone()
+            con.close()
+            if r:
+                try:
+                    roots = json.loads(r[3]) if r[3] else []
+                except Exception:
+                    roots = []
+                return {"title": r[0] or "", "workspace_id": r[1],
+                        "workspace": r[2], "roots": roots, "db": db}
+        return {}
+    # zcode
+    if not os.path.isfile(ZCODE_DB):
+        return {}
+    con = _ro(ZCODE_DB)
+    c = con.cursor()
+    c.execute("SELECT title, project_id, directory FROM session WHERE id = ?", (chat_id,))
+    r = c.fetchone()
+    con.close()
+    if not r:
+        return {}
+    return {"title": r[0] or "", "project_id": r[1], "directory": r[2]}
+
+
+def recent_sessions(ide: str, limit: int = 15) -> list[dict]:
+    """最近会话列表，用于「当前会话不对」时告诉用户该怎么选。"""
+    if ide == "qoder":
+        for db in QODER_DBS:
+            if os.path.isfile(db):
+                rows = qoder_sessions(db)
+                if rows:
+                    return rows[:limit]
+        return []
+    return zcode_sessions()[:limit]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ide", choices=["zcode", "qoder"], required=True)

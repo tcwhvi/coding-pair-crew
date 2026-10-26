@@ -29,7 +29,13 @@ import time
 
 sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, r"C:\Users\Administrator\.agents\skills\external-review\scripts")
+sys.path.insert(0, sys.path[0] if sys.path else ".")
 from cdp import Page, list_targets  # noqa: E402
+
+try:
+    from ide_guard import session_title, recent_sessions  # noqa: E402
+except Exception:                                    # pragma: no cover
+    session_title = recent_sessions = None
 
 QUEUE_WORDS = ["立即", "插话", "立即发送", "立即执行", "打断", "现在就发", "插入"]
 
@@ -75,8 +81,11 @@ JS_CLICK_TITLE = """(() => {
   });
   if (!els.length) return 'NOT_FOUND';
   const e = els[els.length - 1];
+  // 侧栏可能滚出视口（实测 y 会是负数），先滚到中间再取坐标
+  e.scrollIntoView({block: 'center'});
   const r = e.getBoundingClientRect();
-  return JSON.stringify({x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2), n: els.length});
+  return JSON.stringify({x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2),
+                         n: els.length, visible: r.y > 0 && r.y < window.innerHeight});
 })()"""
 
 
@@ -128,7 +137,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, required=True)
     ap.add_argument("--text-file", required=True)
-    ap.add_argument("--expect", default="", help="会话标题关键词；给出时当前会话不匹配就拒发")
+    ap.add_argument("--ide", choices=["zcode", "qoder"], default="",
+                    help="给了就用数据库按 chat id 核对会话身份（强烈建议给）")
+    ap.add_argument("--expect", default="", help="会话标题关键词；当前会话不匹配就拒发")
     ap.add_argument("--switch-to", default="", help="先按侧栏标题切到这个会话")
     ap.add_argument("--no-now", action="store_true", help="不自动点插话/立即")
     ap.add_argument("--force", action="store_true", help="跳过 --expect 校验（明确知道自己在发哪）")
@@ -154,13 +165,29 @@ def main():
             after_switch = chat_id(q)
             print(f"  chat id: {before[:12]}… -> {after_switch[:12]}…")
 
-    # 2) 归属校验
+    # 2) 归属校验：按 chat id 查数据库里的**真实标题**，不看页面文本。
+    #    页面 innerText 含整个侧栏，按文本匹配会把侧栏里别的会话名当成当前会话
+    #    —— 实测把评审指令发进了「查找TTFT插件」。
     if args.expect and not args.force:
-        chk = q.eval_js(JS_TITLE_HIT % json.dumps(args.expect, ensure_ascii=False))
-        info = json.loads(chk) if chk else {}
-        print("归属校验:", info)
-        if not (info.get("head_has") or info.get("body_has")):
-            print(f"!! 当前会话不含「{args.expect}」，拒绝发送。")
+        title = ""
+        info = {}
+        if args.ide and session_title:
+            info = session_title(args.ide, before) or {}
+            title = info.get("title", "")
+            print(f"当前会话:「{title or '未知'}」"
+                  f"  {info.get('workspace') or info.get('directory') or ''}")
+        ok = bool(title) and (args.expect in title)
+        if not title:
+            print("!! 没给 --ide 或查不到会话记录，退回页面文本判断（不可靠）")
+            chk = q.eval_js(JS_TITLE_HIT % json.dumps(args.expect, ensure_ascii=False))
+            info2 = json.loads(chk) if chk else {}
+            ok = bool(info2.get("head_has"))
+        if not ok:
+            print(f"!! 当前会话标题不含「{args.expect}」，拒绝发送。")
+            if args.ide and recent_sessions:
+                print("   最近会话：")
+                for s in (recent_sessions(args.ide, 12) or []):
+                    print(f"     - {(s.get('title') or '')[:52]}")
             print("   用 --switch-to 指定会话标题，或 --force 明确强制。")
             q.close()
             return 2

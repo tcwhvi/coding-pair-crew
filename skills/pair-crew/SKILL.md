@@ -143,14 +143,37 @@ python ~/.agents/skills/external-review/scripts/read_review_replies.py \
 （补上下文、纠正方向、催它出结论），用 `send_followup.py`：
 
 ```bash
-python skills/pair-crew/scripts/send_followup.py --port 9222 --text-file note.md
-python skills/pair-crew/scripts/send_followup.py --port 9224 --text-file note.md
+# 推荐写法：带 --ide，按 chat id 查数据库核对会话身份
+python skills/pair-crew/scripts/send_followup.py --port 9222 --ide qoder \
+  --switch-to "生产导入脚本评审" --expect "生产导入脚本评审" --text-file note.md
+
+python skills/pair-crew/scripts/send_followup.py --port 9224 --ide zcode \
+  --switch-to "评审" --expect "评审" --text-file note.md
 ```
 
-> **⚠ 必须知道的坑**：对方 agent 正在生成时，消息不会立即执行，而是进**排队队列**，
-> 气泡上多出一个「立即」按钮。不点它，消息就一直排在队尾 —— 看起来像「发了没反应」。
-> `send_followup.py` 会主动点「立即」并轮询确认队列清空；
-> 如果你用的是别的注入方式，**发完一定要检查有没有「立即」**。
+> **⚠ 坑 1：会话身份不能看页面文本**
+> `document.body.innerText` 包含整个侧栏，按文本匹配会把侧栏里**别的会话名**当成当前会话。
+> 实测：评审指令被发进「查找TTFT插件」，因为那一页的侧栏里恰好有「评审」二字。
+> `--ide` + `--expect` 现在是**按 chat id 查 IDE 数据库里的真实标题**比对；
+> 查不到就拒发，并列出最近会话供选。
+
+> **⚠ 坑 2：插话按钮不叫「立即」**
+> agent 正在生成时消息只进队列，气泡上多一个按钮，必须点它才插队。
+> ZCode 叫 `立即`，**Qoder CN 叫 `插话`**。只匹配「立即」的脚本在 Qoder 上
+> 一个也点不到，消息永远排队，看起来像「发了没反应」。
+> `send_followup.py` 覆盖 `立即 / 插话 / 立即发送 / 立即执行 / 打断 / 现在就发`，
+> 并取**最靠下**（最新）那个，避免误点历史残留按钮。
+
+> **⚠ 坑 3：侧栏项可能滚出视口**
+> 实测侧栏项的 `getBoundingClientRect().y` 会是负数（-86），点击坐标落在视口外，
+> 事件被丢弃但脚本不报错，表现为「切了但没切过去」。
+> 现在点击前先 `scrollIntoView({block:'center'})`，并回读 `visible` 标志。
+
+> **⚠ 读回结果的更好办法：直接读 IDE 数据库**
+> CDP 只能读**当前活动视图**，用户一切走你就读到别人的会话。要拿某个会话的完整输出，
+> 直接读库更可靠、也不占用用户界面：
+> - Qoder：`main.sqlite` 的 `chat_session_messages`（`payload_json.parts`）
+> - ZCode：`~/.zcode/cli/db/db.sqlite` 的 `message` / `part` 表
 
 ### 7. 评审收口
 
