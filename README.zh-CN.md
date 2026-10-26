@@ -206,7 +206,7 @@ contracts/
 
 `worktrees/` 运行时创建，已被 gitignore。工单板和交接包是文件约定，不是服务；不需要起守护进程或数据库。
 
-## 快速开始
+## 快速开始（直接把仓库地址发给agent让他安装并告诉你如何使用，然后忽略下面内容(●'◡'●)
 
 1. **把 skill 放到指挥能读到的地方。** 直接使用本仓库，或把 `skills/pair-crew/` 拷进项目的 agent skills 目录，或在 `AGENTS.md` / `CLAUDE.md` 里引用 `SKILL.md`。
 
