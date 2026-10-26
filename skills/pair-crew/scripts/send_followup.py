@@ -33,9 +33,9 @@ sys.path.insert(0, sys.path[0] if sys.path else ".")
 from cdp import Page, list_targets  # noqa: E402
 
 try:
-    from ide_guard import session_title, recent_sessions  # noqa: E402
+    from ide_guard import session_title, recent_sessions, message_count  # noqa: E402
 except Exception:                                    # pragma: no cover
-    session_title = recent_sessions = None
+    session_title = recent_sessions = message_count = None
 
 QUEUE_WORDS = ["立即", "插话", "立即发送", "立即执行", "打断", "现在就发", "插入"]
 
@@ -87,6 +87,106 @@ JS_CLICK_TITLE = """(() => {
   return JSON.stringify({x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2),
                          n: els.length, visible: r.y > 0 && r.y < window.innerHeight});
 })()"""
+
+JS_FIND_SEND = """(() => {
+  const hit = [...document.querySelectorAll('button,[role=button],a,div,span')].filter(e => {
+    const r = e.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return false;
+    const al = (e.getAttribute('aria-label') || '') + ' ' +
+               (e.getAttribute('title') || '') + ' ' +
+               (e.getAttribute('data-testid') || '');
+    const t = (e.innerText || '').trim();
+    return /发送|send|submit/i.test(al) || t === '发送' || t === 'Send';
+  });
+  if (!hit.length) return 'NO_SEND_BTN';
+  // 取最靠下的那个（发送按钮在输入框右侧/下方，不是顶栏）
+  hit.sort((a, b) => b.getBoundingClientRect().y - a.getBoundingClientRect().y);
+  const r = hit[0].getBoundingClientRect();
+  return JSON.stringify({x: Math.round(r.x + r.width / 2),
+                         y: Math.round(r.y + r.height / 2),
+                         label: (hit[0].getAttribute('aria-label') || hit[0].innerText || '').slice(0, 20)});
+})()"""
+
+
+def press_enter(q: Page):
+    """Enter。
+
+    **必须用 keyDown 且带 text='\\r'**：`rawKeyDown` 只发 keydown、不带字符事件，
+    React 受控的 contenteditable 常常收不到，表现为「注入成功但发不出去」
+    （实测 Qoder：fill=OK、chat id 正确、数据库一条没增）。
+    """
+    q.cmd("Input.dispatchKeyEvent", type="keyDown", key="Enter", code="Enter",
+          windowsVirtualKeyCode=13, nativeVirtualKeyCode=13,
+          text="\r", unmodifiedText="\r")
+    q.cmd("Input.dispatchKeyEvent", type="keyUp", key="Enter", code="Enter",
+          windowsVirtualKeyCode=13, nativeVirtualKeyCode=13)
+
+
+def press_ctrl_enter(q: Page):
+    for mods in (2,):      # 2 = Ctrl
+        q.cmd("Input.dispatchKeyEvent", type="keyDown", key="Enter", code="Enter",
+              windowsVirtualKeyCode=13, nativeVirtualKeyCode=13, modifiers=mods,
+              text="\r", unmodifiedText="\r")
+        q.cmd("Input.dispatchKeyEvent", type="keyUp", key="Enter", code="Enter",
+              windowsVirtualKeyCode=13, nativeVirtualKeyCode=13, modifiers=mods)
+
+
+def click_send_button(q: Page) -> bool:
+    r = q.eval_js(JS_FIND_SEND)
+    if not r or r == "NO_SEND_BTN":
+        return False
+    d = json.loads(r)
+    click(q, d["x"], d["y"])
+    print(f"   点了发送按钮（{d.get('label') or 'icon'}）")
+    return True
+
+
+def wait_delivered(ide: str, chat_id: str, n_before: int, timeout=8.0) -> int:
+    """等到消息数增加，返回最新条数（超时则返回原值）。"""
+    if not (ide and message_count and n_before >= 0):
+        return -1
+    deadline = time.time() + timeout
+    n = n_before
+    while time.time() < deadline:
+        time.sleep(1.0)
+        n = message_count(ide, chat_id)
+        if n > n_before:
+            return n
+    return n
+
+
+def send_with_fallback(q: Page, ide: str, chat_id_: str, n_before: int) -> tuple[bool, int]:
+    """三路发送，直到数据库里真的多出一条。
+
+    返回 (是否送达, 最新消息数)。无 --ide 时退化成「发一次就信」。
+    """
+    if not (ide and message_count and n_before >= 0):
+        press_enter(q)
+        time.sleep(1.5)
+        return True, -1
+
+    attempts = [
+        ("Enter(keyDown+text)", lambda: press_enter(q)),
+        ("发送按钮", lambda: click_send_button(q)),
+        ("Ctrl+Enter", lambda: press_ctrl_enter(q)),
+        ("Enter 再来一次", lambda: press_enter(q)),
+    ]
+    n = n_before
+    for i, (name, fn) in enumerate(attempts, 1):
+        ok = fn()
+        if ok is False:
+            print(f"   [{i}] {name}: 不可用，跳过")
+            continue
+        n = wait_delivered(ide, chat_id_, n_before)
+        if n > n_before:
+            print(f"   [{i}] {name}: 已送达（消息数 {n_before} -> {n}）")
+            return True, n
+        print(f"   [{i}] {name}: 未送达（消息数仍为 {n}），换下一种")
+    return False, n
+
+
+def _extract_text(q: Page) -> str:
+    return q.eval_js("document.body.innerText") or ""
 
 
 def first_page(port):
@@ -212,10 +312,9 @@ def main():
         return 1
 
     time.sleep(0.8)
-    for typ in ("rawKeyDown", "keyUp"):
-        q.cmd("Input.dispatchKeyEvent", type=typ, key="Enter", code="Enter",
-              windowsVirtualKeyCode=13)
-    time.sleep(1.5)
+    n_before = message_count(args.ide, before) if (args.ide and message_count) else -1
+    print(f"发送前消息数: {n_before}")
+    delivered, n_after = send_with_fallback(q, args.ide, before, n_before)
 
     # 4) 发送后核对：会话不能变
     now_id = chat_id(q)
@@ -223,6 +322,13 @@ def main():
         print(f"!! 发送后会话变成了 {now_id[:12]}…，消息可能落到别的会话")
         q.close()
         return 3
+
+    if not delivered:
+        print("!! 三种发送方式都没能让数据库新增消息 —— 这条发不出去。")
+        print("   这通常是因为用户正在同一会话里操作 IDE，输入被抢。")
+        print(f"   请手动把 {args.text_file} 的内容粘进目标会话，或等 IDE 空闲重试。")
+        q.close()
+        return 4
 
     # 5) 清排队（Qoder 叫「插话」，ZCode 叫「立即」）
     queued = bool(queue_buttons(q))

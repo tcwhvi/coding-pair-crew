@@ -179,6 +179,45 @@ python skills/pair-crew/scripts/send_followup.py --port 9224 --ide zcode \
 
 - P0–P3；轮次 ≤5；连续 2 轮无新 P0/P1 → QA
 
+#### 【硬性】未收口不得收工
+
+这是最容易犯、代价最大的错：**派发是异步的，agent 的会话是同步的**。
+外部 IDE 一跑就是半小时到一小时，一波指令发出去，agent 这边一轮答完就要结束，
+于是「派发了」被当成了「评审完了」，结论永远没人读，用户那边还在跑、这边已经收工。
+
+规矩：
+
+1. **派发后立刻登记**：在 `.agents/BOARD.md` 写一行
+   `task_id | 工具 | 会话标题 | session_id | 派发时间 | 状态=in_review`
+2. **收工前必须做收口检查**，三问：
+   - 我这次派出去几个评审？各自的 `session_id` 是什么？
+   - **每一个**都拿到明确判定（`可以开工` / `还不能开工` / 换方案）了吗？
+   - 没拿到的，有没有在 HANDOFF 里写清「怎么读回」？
+3. **禁止**在还有 `in_review` 未读回时，宣称任务完成或说「评审已通过」
+4. 拿不到结论就**明说**：「X 还在跑，我下次用 `collect_review.py --session <id>` 读回」，
+   并把命令写进回复里，不要含糊过去
+
+#### 读回：查 IDE 数据库，不要抓页面
+
+```bash
+# 一眼看出哪些评审还没收口（最近 12 小时有活动、含明确判定）
+python skills/pair-crew/scripts/collect_review.py
+python skills/pair-crew/scripts/collect_review.py --title 评审 --full
+python skills/pair-crew/scripts/collect_review.py --session <session_id> --full
+```
+
+> **⚠ 判读陷阱：消息条数不变 ≠ 没有新结论。**
+> 实测 Qoder 会在**同一条 assistant 消息**上原地更新内容：条数一直是 6，
+> 但里面已经从「第一轮结论」换成了「第三轮复核」。
+> 只看条数就会得出「它没回我」的错误结论，然后重复派发、白等。
+> 正确做法是看**最后一条 assistant 消息的 `updated_at` 和正文**，
+> `collect_review.py` 输出的就是这个。
+
+> **⚠ 不要靠抓页面判断「还在不在跑」。**
+> `document.body.innerText` 只反映当前活动视图，用户一切走你就看到别人的会话；
+> 页面上任何「生成中」字样都可能来自别的任务。以数据库里的消息时间为准。
+
+
 ### 8. QA
 
 - 例子表 + Layout 清单 + 主/异常 Journey

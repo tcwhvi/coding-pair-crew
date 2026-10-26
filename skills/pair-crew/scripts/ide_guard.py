@@ -227,6 +227,44 @@ def recent_sessions(ide: str, limit: int = 15) -> list[dict]:
     return zcode_sessions()[:limit]
 
 
+def message_count(ide: str, chat_id: str) -> int:
+    """某个会话的消息条数。
+
+    发送后拿它和发送前比 —— **UI 报 sent 不等于真的提交了**。
+    实测：脚本切换会话、注入、回车全部"成功"，页面也切到了目标会话，
+    但 Qoder 数据库里一条新消息都没有（用户同时在操作 IDE，输入被吞）。
+    只有条数增加才算真发出去了。
+    """
+    if not chat_id:
+        return -1
+    if ide == "qoder":
+        for db in QODER_DBS:
+            if not os.path.isfile(db):
+                continue
+            con = _ro(db)
+            c = con.cursor()
+            try:
+                c.execute("SELECT COUNT(*) FROM chat_session_messages WHERE session_id = ?",
+                          (chat_id,))
+                return int(c.fetchone()[0])
+            except Exception:
+                return -1
+            finally:
+                con.close()
+        return -1
+    if not os.path.isfile(ZCODE_DB):
+        return -1
+    con = _ro(ZCODE_DB)
+    c = con.cursor()
+    try:
+        c.execute("SELECT COUNT(*) FROM message WHERE session_id = ?", (chat_id,))
+        return int(c.fetchone()[0])
+    except Exception:
+        return -1
+    finally:
+        con.close()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ide", choices=["zcode", "qoder"], required=True)
