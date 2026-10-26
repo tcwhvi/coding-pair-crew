@@ -44,7 +44,10 @@ from ide_guard import QODER_DBS, ZCODE_DB  # noqa: E402
 
 
 def _ro(path):
-    return sqlite3.connect(f"file:{path}?mode=ro&immutable=1", uri=True)
+    # 不加 immutable=1（会忽略 WAL，读到旧快照，导致「消息数一直不变」的误判）
+    con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    con.execute("PRAGMA query_only=1")
+    return con
 
 
 def _ts(ms):

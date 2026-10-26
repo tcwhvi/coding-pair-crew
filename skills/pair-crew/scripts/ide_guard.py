@@ -44,7 +44,14 @@ def _norm(p: str) -> str:
 
 
 def _ro(path):
-    return sqlite3.connect(f"file:{path}?mode=ro&immutable=1", uri=True)
+    # 【绝不能加 immutable=1】那是「这个库保证不会变」的承诺，SQLite 会跳过
+    # WAL 和变更检测，读到的是打开那一刻的缓存快照。IDE 的新消息全在新写入的
+    # -wal 里，immutable 模式下永远看不见 —— 表现就是「消息数一直不变」，
+    # 于是误判「它没回我」「发不出去」，进而重复派发。
+    # mode=ro 会正常读 -wal，又能防止误写。
+    con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    con.execute("PRAGMA query_only=1")
+    return con
 
 
 # ---------------- ZCode ----------------
