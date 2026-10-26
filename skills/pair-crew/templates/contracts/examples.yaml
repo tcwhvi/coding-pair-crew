@@ -1,0 +1,42 @@
+# examples.yaml — 启动会共识例子表（实现/测试共用）
+# 测试者按此写测试；实现者按此写码。理解冲突必须升级主持人。
+
+story_id: T-demo-001
+examples:
+  - id: ex-01
+    name: 主路径成功
+    type: happy          # happy | boundary | error | ui_layout | ui_journey
+    given: "…"
+    when: "…"
+    then: "…"
+    ui:
+      viewport: "1280x800"
+      path: "…"
+  - id: ex-02
+    name: 边界/空值
+    type: boundary
+    given: "…"
+    when: "…"
+    then: "…"
+  - id: ex-03
+    name: 异常/失败分支
+    type: error
+    given: "…"
+    when: "…"
+    then: "…"
+  - id: ex-04
+    name: 主用户点击路径
+    type: ui_journey
+    steps:
+      - "打开 /x"
+      - "点击 Y"
+      - "填写 Z"
+      - "提交，见 toast"
+    expect: "跳转到 /w 且列表出现新行"
+  - id: ex-05
+    name: 布局风险点
+    type: ui_layout
+    viewport: ["375x812", "1280x800"]
+    check:
+      - "主 CTA 不被遮挡"
+      - "长文案不溢出"

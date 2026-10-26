@@ -1,0 +1,16 @@
+# pair-crew 开源仓库忽略项
+.mimocode/
+*.log
+*.tmp
+__pycache__/
+*.pyc
+.env
+.env.*
+worktrees/
+# 本地派发调试脚本（可留源码，忽略缓存）
+skills/pair-crew/scripts/__pycache__/
+# 会话内草稿
+contracts/**/drafts/
+.DS_Store
+Thumbs.db
+skills/pair-crew/scripts/_*.py

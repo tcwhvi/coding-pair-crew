@@ -1,0 +1,70 @@
+# Pair-Dev 角色 → 运行时 / 模型 / 能力绑定
+# 说明：requires 必须被模型 modalities 覆盖；routing_check 会在开工前校验。
+
+model_groups:
+  # 按本机实际可用模型填写（provider/model 或组名）
+  vision: ""   # 多模态：UI 布局目检、截图审阅
+  code: ""     # 代码：实现 / Journey 脚本
+  critic: ""   # 评审：与 code 异构
+  lite: ""     # 便宜：标题、摘要、路由探测
+
+roles:
+  architect:
+    runtime: mimo-session
+    session_name: "Pair · 架构师"
+    model: critic
+    reasoning: xhigh
+    context_style: files
+
+  implementer:
+    runtime: external-ide
+    tool: qoder          # qoder | workbuddy | mimo | claude-code
+    model: code
+    reasoning: high
+    context_style: files
+
+  test_partner:
+    runtime: actor
+    subagent_type: general
+    model: code
+    reasoning: high
+    requires: [browser_auto]
+    context_style: files
+
+  ui_layout_tester:
+    runtime: actor
+    subagent_type: general
+    model: vision
+    requires: [vision, image_read]
+    reasoning: medium
+    context_style: files
+
+  reviewer:
+    runtime: mimo-session
+    session_name: "Pair · 评审员"
+    model: critic
+    reasoning: high
+    context_style: files
+
+  qa:
+    runtime: actor
+    subagent_type: general
+    model: code
+    reasoning: medium
+    context_style: files
+
+  integrator:
+    runtime: mimo-main
+    model: code
+    reasoning: high
+    context_style: files
+
+# 工具优先级（实现者侧，可切换）
+implementer_tool_order:
+  - qoder
+  - workbuddy
+  - mimo
+
+# 评审轮次上限（超过升级人工）
+review_max_rounds: 5
+review_exit_rule: "连续 2 轮无新增 P0/P1"

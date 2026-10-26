@@ -1,0 +1,64 @@
+# pair-crew 角色绑定（agent 无关）
+# routing_check.py 开工前校验；指挥可以是 Claude Code / Codex / MiMo / 自定义 agent。
+# runtime 是「派发目标类型」，不是某个产品的绑定。
+
+model_groups:
+  vision: "GLM-5.3-Flash"      # 多模态：UI 布局目检（无 vision 则禁止排该岗）
+  code:   "GLM-5.3-Flash"
+  critic: "Hy4 preview"        # 与 code 异构
+  lite:   "GLM-5.2"
+
+roles:
+  architect:
+    runtime: local-session     # 当前指挥 agent 的主会话 / 自己
+    model: critic
+    reasoning: xhigh
+    context_style: files
+
+  implementer:
+    runtime: external-ide
+    tool: qoder                # qoder | qoder_cn | workbuddy | zcode | claude-code | codex | ...
+    model: code
+    reasoning: high
+    context_style: files
+
+  test_partner:
+    runtime: local-session     # 或 external-ide
+    model: code
+    reasoning: high
+    requires: [browser_auto]
+    context_style: files
+
+  ui_layout_tester:
+    runtime: local-session
+    model: vision
+    requires: [vision, image_read]
+    reasoning: medium
+    context_style: files
+
+  reviewer:
+    runtime: local-session
+    model: critic
+    reasoning: high
+    context_style: files
+
+  qa:
+    runtime: local-session
+    model: code
+    reasoning: medium
+    context_style: files
+
+  integrator:
+    runtime: local-session
+    model: code
+    reasoning: high
+    context_style: files
+
+implementer_tool_order:
+  - qoder
+  - qoder_cn
+  - workbuddy
+  - zcode
+
+review_max_rounds: 5
+review_exit_rule: "连续 2 轮无新增 P0/P1"
