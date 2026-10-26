@@ -1,13 +1,8 @@
-# GitHub Profile（人话版 · 已脱敏）
+# Hi, I turn messy businesses into systems people actually use
 
-> 可直接放到 `<username>/<username>` 仓库的 `README.md`。  
-> **不写**：公司名、客户名、同事真名、学校联合背书等可定位信息。
+**中文** | [English](#english)
 
----
-
-你好，我是做 **「把复杂业务做成能用的系统」** 这件事的。
-
-很多老板、创业者、产品负责人都卡在：系统难改、员工不爱用、AI 不知道用在哪、有想法落不了地。我擅长把这些问题拆开、做出来、用起来。
+我能帮你把复杂业务做成**真正用得起来**的系统。很多老板、创业者、产品负责人都卡在：系统难改、员工不爱用、AI 不知道用在哪、有想法落不了地。我擅长把这些问题拆开、做出来、用起来。
 
 ## 你可能正被这些事卡住
 
@@ -36,14 +31,51 @@
 - 能把技术说成**老板听得懂的话**，把需求说成**工程师做得动的话**  
 - 适合业务复杂、历史包袱重、要多方一起干的项目；不适合只要「照抄一版」的活
 
-## 开源
+## 开源 / Open source
 
-- **pair-crew**：让多个 AI 分角色结对开发（一人写实现、一人写测试），需求先对齐再开工，工具不限定哪家
-
-## 怎么找我聊
-
-对现状说不清也没关系。把你现在最头疼的一件事讲一遍，我们一起拆：先做什么、后做什么、大概什么节奏。
+- **[pair-crew](https://github.com/tcwhvi/coding-pair-crew)** — 多 Agent 结对开发：需求先对齐再开工，工具不限定哪家
 
 ---
 
-*具体项目与合作方式以私下沟通为准。*
+<a name="english"></a>
+
+# English
+
+I turn messy, complex businesses into **software people actually use**.
+
+Founders, executives, and product leads often get stuck: systems nobody dares change, tools staff ignore, AI with no clear ROI, ideas that never ship. I break those problems down, build the fix, and make sure it sticks.
+
+## You might be stuck on
+
+**A legacy system nobody understands**  
+Docs gone, people gone, every change breaks something else. I learn how the business makes money first, then rebuild safely with **no downtime for operations**.
+
+**Software bought, but still Excel + chat apps**  
+It’s not another tool purchase. We wire process, data, and real workflows together so work happens **in the system**.
+
+**“We should use AI” — but where?**  
+Find where it actually saves people, time, or money for *your* roles and processes — then ship something used daily, not a demo.
+
+**From zero to product / new line of business**  
+Positioning, wedge, first version, and systems that survive real users — validate small, then scale.
+
+**Collapses under load; money and orders must not be wrong**  
+High-traffic, highly available design with data consistency that holds.
+
+**Hardware + software together**  
+Device ↔ cloud ↔ back office, balanced for cost, reliability, and the business case.
+
+## What makes this different
+
+- Start from **why the business works / where it’s stuck**, then choose tech  
+- Launch is not done; **adoption and reliability** are  
+- Speak **plain language to business** and **actionable language to engineers**  
+- Best fit: complex domains, heavy legacy, multi-party delivery — not “clone this page” jobs
+
+## Open source
+
+- **[pair-crew](https://github.com/tcwhvi/coding-pair-crew)** — multi-agent pair development: align the story first, then code; tool-agnostic
+
+---
+
+*Let’s start with the one problem that hurts most / 先把你最头疼的一件事讲一遍。*
