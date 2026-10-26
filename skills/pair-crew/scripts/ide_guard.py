@@ -33,6 +33,11 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8")
 
 ZCODE_DB = os.path.expanduser(r"~/.zcode/cli/db/db.sqlite")
+# ZCode 的「项目」登记在 tasks-index.sqlite，不在 cli/db/db.sqlite。
+# 只查 session 表会漏掉「已建项目但还没开过会话」的情况 —— 实测用户建好了
+# 目标项目，我这边一直报 ok:false。
+ZCODE_INDEX = os.path.expanduser(r"~/.zcode/v2/tasks-index.sqlite")
+ZCODE_SETTING = os.path.expanduser(r"~/.zcode/v2/setting.json")
 QODER_DBS = [
     os.path.expanduser(r"~/AppData/Roaming/com.qodercn.app.stable/main.sqlite"),
     os.path.expanduser(r"~/AppData/Roaming/com.qoder.app.stable/main.sqlite"),
@@ -56,22 +61,55 @@ def _ro(path):
 
 # ---------------- ZCode ----------------
 def zcode_projects() -> list[dict]:
-    if not os.path.isfile(ZCODE_DB):
-        return []
-    try:
-        con = _ro(ZCODE_DB)
-        c = con.cursor()
-        c.execute(
-            "SELECT project_id, directory, COUNT(*) n, MAX(time_updated) t "
-            "FROM session WHERE time_deleted IS NULL AND directory IS NOT NULL "
-            "GROUP BY project_id, directory ORDER BY t DESC"
-        )
-        rows = [{"project_id": r[0], "directory": r[1], "sessions": r[2]}
-                for r in c.fetchall()]
-        con.close()
-        return rows
-    except Exception as e:
-        return [{"error": str(e)}]
+    """ZCode 里登记的项目。
+
+    权威来源是 `v2/tasks-index.sqlite` 的 `projects` + `project_roots`，
+    再加上 `v2/setting.json` 的 `recentProjects`（有些刚打开的项目只进了这里）。
+    `cli/db/db.sqlite` 的 session 表只能反映「开过会话的目录」，
+    **已建项目但没开会话时会漏判**，所以三条来源取并集。
+    """
+    out, seen = [], set()
+
+    def add(root, src, pid=""):
+        r = (root or "").strip()
+        if not r:
+            return
+        k = _norm(r)
+        if k in seen:
+            return
+        seen.add(k)
+        out.append({"directory": r, "source": src, "project_id": pid})
+
+    # 1) tasks-index 的 projects + project_roots
+    if os.path.isfile(ZCODE_INDEX):
+        try:
+            con = _ro(ZCODE_INDEX)
+            c = con.cursor()
+            c.execute(
+                "SELECT p.name, r.root_path, p.project_id FROM projects p "
+                "LEFT JOIN project_roots r ON r.project_id = p.project_id "
+                "WHERE p.deleted = 0 ORDER BY p.position"
+            )
+            for name, root, pid in c.fetchall():
+                add(root, f"project:{name}", pid or "")
+            con.close()
+        except Exception:
+            pass
+
+    # 2) setting.json 的 recentProjects
+    if os.path.isfile(ZCODE_SETTING):
+        try:
+            d = json.loads(open(ZCODE_SETTING, encoding="utf-8").read())
+            for r in (d.get("recentProjects") or []):
+                add(r, "recentProjects")
+        except Exception:
+            pass
+
+    # 3) session 表里开过会话的目录（兜底）
+    for s in zcode_sessions():
+        add(s.get("directory"), "session")
+
+    return out
 
 
 def zcode_sessions() -> list[dict]:
