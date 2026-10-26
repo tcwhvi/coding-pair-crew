@@ -238,6 +238,30 @@ python skills/pair-crew/scripts/collect_review.py --session <session_id> --full
 > `document.body.innerText` 只反映当前活动视图，用户一切走你就看到别人的会话；
 > 页面上任何「生成中」字样都可能来自别的任务。以数据库里的消息时间为准。
 
+#### 【硬性】「盯着」= 阻塞轮询，不是跑一次
+
+**跑一次没看到判定，不等于它没回。** 外部 agent 常常还要几分钟才写完结论。
+真实踩过：19:52 查一次没有判定，19:54 人家就出了「可以开工」，
+我却上报「它没回应」，被告知「明明已经执行完了」。
+
+要等就用 `--wait`，它会轮询到出现判定词才返回：
+
+```bash
+python skills/pair-crew/scripts/collect_review.py --wait --session <session_id> \
+  --timeout 1800 --interval 15
+```
+
+- 退出码 `0` = 拿到判定；`2` = 超时。**超时不等于失败** —— 它可能还在跑，
+  过一会再 `--wait` 一次，不要据此断言「它没回我」
+- 轮询比的是**正文内容哈希**，不是消息条数（Qoder 会原地更新同一条消息，条数不变）
+- 判定词优先取正文开头 300 字（结论都在第一行，正文表格里可能引用别的轮次的词）
+
+> **⚠ 读 IDE 数据库绝对不能加 `immutable=1`。**
+> 那是「这个库保证不会变」的承诺，SQLite 会跳过 WAL，只返回打开那一刻的快照。
+> IDE 的新消息全在新写入的 `-wal` 里，于是条数永远不变、结论永远读不到。
+> 用 `mode=ro` + `PRAGMA query_only=1`：正常读 WAL，且仍然只读。
+
+
 
 ### 8. QA
 
