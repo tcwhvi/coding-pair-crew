@@ -332,4 +332,5 @@ python skills/pair-crew/scripts/collect_review.py --wait --session <session_id> 
 | `scripts/send_qoder.py` | Qoder CN / 国际版派发（指定 CDP 端口，**新建任务**） |
 | `scripts/send_zcode.py` | ZCode 派发（**新建任务**） |
 | `scripts/send_followup.py` | **同一会话续写**；会话归属校验 + 自动点「插话/立即」把排队消息插队 |
+| `scripts/collect_review.py` | 从 IDE 数据库读回判定；`--wait` 阻塞到判定出现（**收工前必跑**） |
 | `templates/*` | HANDOFF / ROUTING / STORY_KICKOFF / DISPATCH_CHECKLIST / contracts |

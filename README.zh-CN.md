@@ -190,6 +190,7 @@ skills/pair-crew/
     send_qoder.py           # Qoder 参考适配器（CDP）
     send_zcode.py           # ZCode 参考适配器（CDP）
     send_followup.py        # 向运行中的会话续写；校验会话归属并点掉排队按钮
+    collect_review.py       # 从 IDE 数据库读回判定；--wait 阻塞到判定出现
 docs/
   multi-agent-pair-plan.md  # 设计思路、角色设计、测试分层、落地路线
 contracts/
@@ -252,8 +253,10 @@ contracts/
 适配器照样打印 `SENT`。
 
 现在 `ide_guard.require()` 按**绝对路径**核对，直接读 IDE 自己的库：
-ZCode 读 `~/.zcode/cli/db/db.sqlite` 的 `session.project_id` + `session.directory`，
+ZCode 读 `~/.zcode/v2/tasks-index.sqlite` 的 `projects` + `project_roots`
+（外加 `v2/setting.json` 的 `recentProjects`），
 Qoder 读 `main.sqlite` 的 `workspaces.root_paths_json` + `chat_sessions.workspace_id`。
+**只读 ZCode 的 session 表不够** —— 已建但还没开过会话的项目在那里查不到。
 排查用 `ide_guard.py --ide zcode --list` / `--sessions`。
 
 名字根本不可用：ZCode 的 `project_id` 由路径派生且会丢掉非 ASCII
@@ -270,6 +273,17 @@ agent 正在生成时，`insertText + Enter` 不会立刻执行，而是进排�
 `send_followup.py` 还会核对这次到底在跟哪个会话说话：传 `--switch-to <标题>` 或
 `--expect <标题关键词>`，发送前后比对 `chat id`，变了就直接报错，而不是报成功。
 
+
+**3. 读判定：不能用 `immutable=1`，也不能只查一次。**
+两个坑，都曾让我给出信誓旦旦的错误结论：
+
+- `sqlite3.connect("file:...?immutable=1")` 是「承诺这个库不会变」，SQLite 于是跳过 WAL，
+  只返回打开那一刻的快照。IDE 的新消息全写进 `-wal`，于是条数看起来卡在 14、真实表里已经是
+  44 条，一个早就答完的回复看起来像「它根本没回」。要用 `mode=ro` + `PRAGMA query_only=1`。
+- Qoder 会**在同一条 assistant 消息上原地改写**，所以来了新结论消息数也不变。要看最后一条
+  assistant 消息的 `updated_at` 和正文，不能看 `COUNT(*)`。而且派发是异步的、agent 的一轮
+  是同步的，「派出去了」不等于「审完了」：`collect_review.py --wait --session <id>`
+  会阻塞到判定词出现才返回（退出码 0=拿到判定，2=超时，**超时不是失败**，它可能还在跑）。
 
 `contracts/T-smoke-*` 里的通道冒烟覆盖 Qoder CN、Qoder 国际版、ZCode 和 WorkBuddy。它们验证的是工位能绑定到正确工作区、读契约、回报结果，不保证未来每个 IDE 版本都行为一致。
 

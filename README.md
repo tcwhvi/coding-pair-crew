@@ -197,6 +197,7 @@ skills/pair-crew/
     send_qoder.py           # reference CDP adapter for Qoder
     send_zcode.py           # reference CDP adapter for ZCode
     send_followup.py        # follow-up into a running session; verifies session, clicks queue button
+    collect_review.py       # read verdicts from the IDE DB; --wait blocks until one appears
 docs/
   multi-agent-pair-plan.md  # design rationale, role design, test layers, rollout plan
 contracts/
@@ -260,8 +261,10 @@ had `directory = E:\project_self\coding_skill\.mimocode`, while the task was abo
 different repository on `D:`. The adapter still printed `SENT`.
 
 `ide_guard.require()` now resolves binding by absolute path, reading the IDE's own database:
-`~/.zcode/cli/db/db.sqlite` (`session.project_id` + `session.directory`) for ZCode, and
-`main.sqlite` (`workspaces.root_paths_json` + `chat_sessions.workspace_id`) for Qoder.
+`~/.zcode/v2/tasks-index.sqlite` (`projects` + `project_roots`, plus `v2/setting.json`
+`recentProjects`) for ZCode, and `main.sqlite` (`workspaces.root_paths_json` +
+`chat_sessions.workspace_id`) for Qoder. Reading ZCode's session table alone is not enough —
+a project that exists but has never had a session opened in it is invisible there.
 Verify with `ide_guard.py --ide zcode --list` / `--sessions`. Name matching is unusable:
 ZCode derives `project_id` from the path and drops non-ASCII (`D:\projects\海豚屋` and
 `D:\projects\做课` both collapse to `proj_d-projects`), and Qoder can hold duplicate
@@ -279,6 +282,20 @@ lowest one so historical leftover buttons are not re-triggered.
 or `--expect <title substring>`, and it compares the `chat id` before and after sending —
 if the id changed, it fails loudly instead of reporting success.
 
+
+**3. Reading a verdict: never `immutable=1`, never poll only once.**
+Two traps, both of which produced confidently wrong reports:
+
+- `sqlite3.connect("file:...?immutable=1")` is a promise that the file will not change, so
+  SQLite skips the WAL and keeps returning the snapshot taken at open time. IDE writes land in
+  `-wal`, so new messages were invisible: the count looked frozen at 14 while the table really
+  held 44, and an answer that had already finished looked like "it never replied". Read with
+  `mode=ro` plus `PRAGMA query_only=1`.
+- Qoder updates **the same assistant message in place**, so message count does not change when
+  a new verdict arrives. Judge by the last assistant message's `updated_at` and body, not by
+  `COUNT(*)`. And since dispatch is asynchronous while an agent turn is not, "dispatched" is not
+  "reviewed": `collect_review.py --wait --session <id>` blocks until a verdict word appears
+  (exit 0 verdict, exit 2 timeout — a timeout is not a failure, the worker may still be running).
 
 The channel smoke tests in `contracts/T-smoke-*` cover Qoder CN, Qoder international, ZCode, and WorkBuddy. They verify that a worker can bind to the right workspace, read the contract, and report back; they are not a guarantee that every future IDE version will behave.
 
