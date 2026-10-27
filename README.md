@@ -126,6 +126,8 @@ The reviewer is deliberately not part of the writing pair. The person who wrote 
 
 Partner mode is the closest to a real pair. The test partner is not waiting for a finished build; both sides move example by example and challenge each other's assumptions while the code is still soft.
 
+Dispatch defaults to **two randomly picked agents** (user-specified tools or counts win). Swarm-style expansion happens only when the user names it; the agent does not add agents on its own.
+
 ## Quality gates
 
 ### Test layers

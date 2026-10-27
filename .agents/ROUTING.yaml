@@ -54,6 +54,7 @@ roles:
     reasoning: high
     context_style: files
 
+# 候选池（仅列可用工具，不按顺序挑）：pair/review 派发时随机抽 2 个；用户点名优先
 implementer_tool_order:
   - qoder
   - qoder_cn
