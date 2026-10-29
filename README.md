@@ -15,7 +15,7 @@
 
 pair-crew is an agent-agnostic protocol for running a small development crew: a conductor, an implementer, a test partner, a reviewer, QA, and an integrator. It is not a hosted orchestrator or a code generator. It is a set of role definitions, file contracts, quality gates, and reference adapters that keep multiple AI sessions from stepping on each other.
 
-The conductor can be Claude Code, Codex, MiMo, or any agent that can read files, run Python, and send prompts. Qoder, Qoder CN, WorkBuddy, and ZCode are typical worker runtimes. Roles are fixed; the tools behind them are replaceable.
+The conductor can be Claude Code, Codex, MiMo, Trae, or any agent that can read files, run Python, and send prompts. Qoder, Qoder CN, WorkBuddy, ZCode, and Trae are typical worker runtimes. Roles are fixed; the tools behind them are replaceable, and calling works both ways — Trae can dispatch to Qoder, and Qoder can dispatch to Trae.
 
 Built for developers and tech leads who already use more than one AI coding session — or want to — and are tired of shuttling context by hand.
 
@@ -198,6 +198,7 @@ skills/pair-crew/
     ide_guard.py            # verify a project is bound to an absolute path (run before dispatch)
     send_qoder.py           # reference CDP adapter for Qoder
     send_zcode.py           # reference CDP adapter for ZCode
+    send_trae.py            # reference Trae adapter (CLI chat; result-file readback)
     send_followup.py        # follow-up into a running session; verifies session, clicks queue button
     collect_review.py       # read verdicts from the IDE DB; --wait blocks until one appears
 docs/
@@ -246,10 +247,15 @@ contracts/
 | A conductor that can read files and run Python | Use `SKILL.md` directly |
 | Local sessions or subagents | Conductor spawns a role in an isolated worktree with a prompt file and contract paths |
 | External GUI IDE (Qoder, ZCode, WorkBuddy, etc.) | A CDP adapter sends the prompt file and reads the result back; verify workspace, absolute path, and access first |
+| Trae (Trae CN / Trae) | `send_trae.py` calls Trae's built-in `chat` subcommand with `--project-path` as the working directory; no debug port needed. Its chat store is encrypted, so readback uses a `--result-file` contract file |
 | CLI agent (Claude Code, Codex, etc.) | Run it headless inside the worktree with the contract package |
 | A human | Confirms the kickoff, approves dispatches, arbitrates P0s, merges |
 
 `send_qoder.py` and `send_zcode.py` are reference adapters, not the protocol. They drive the IDE's UI over CDP and load a local `cdp.py` helper from the `external-review` skill (or a vendored copy). GUI selectors are brittle; when an IDE changes its UI, fix the adapter or dispatch manually. The contract flow does not depend on the adapter.
+
+`send_trae.py` is not a CDP adapter. It calls Trae's built-in `chat` subcommand with `--project-path` as the working directory, so it needs no debug port. The trade-off is readback: Trae's chat store is encrypted, so you cannot query it like Qoder/ZCode. Pass `--result-file` and have Trae write its verdict into the contract directory; the script polls that file. Follow-ups are a new dispatch, not an in-session insert.
+
+> **Status: unverified (2026-10-29).** On the reference machine (Trae CN 3.4.9, bundled cli 1.107.1) the CLI exits 0 and the script prints SENT, but neither Trae surface receives it: the IDE chat panel stays on its "start a chat" placeholder, the Agent task list gains no task, and the result file never appears — same outcome across five attempts (`-m agent --add-file`, `-n -m ask`, `cli.js -r <project>` + `chat -r -m agent`, Agent window focused, and a bare `chat -m ask -r`). `chat -r` also reset the window to an empty workspace once (project had to be reopened). The chat store is encrypted, so there is no second read-back path. Treat this adapter as wired-but-unproven: look at the Trae window and confirm a chat actually started before counting it as one of your two reviewers.
 
 ### Two CDP pitfalls that silently corrupt a dispatch
 
