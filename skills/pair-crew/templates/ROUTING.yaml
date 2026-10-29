@@ -18,7 +18,7 @@ roles:
 
   implementer:
     runtime: external-ide
-    tool: qoder          # qoder | qoder_cn | workbuddy | zcode | trae | mimo | claude-code
+    tool: qoder          # qoder | workbuddy | mimo | claude-code
     model: code
     reasoning: high
     context_style: files
@@ -64,7 +64,6 @@ roles:
 implementer_tool_order:
   - qoder
   - workbuddy
-  - trae        # CLI chat；不需要 CDP 端口，读回靠 --result-file
   - mimo
 
 # 评审轮次上限（超过升级人工）

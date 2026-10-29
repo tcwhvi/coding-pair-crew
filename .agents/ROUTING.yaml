@@ -17,7 +17,7 @@ roles:
 
   implementer:
     runtime: external-ide
-    tool: qoder                # qoder | qoder_cn | workbuddy | zcode | trae | claude-code | codex | ...
+    tool: qoder                # qoder | qoder_cn | workbuddy | zcode | claude-code | codex | ...
     model: code
     reasoning: high
     context_style: files
@@ -60,7 +60,6 @@ implementer_tool_order:
   - qoder_cn
   - workbuddy
   - zcode
-  - trae        # CLI chat；不需要 CDP 端口，读回靠 --result-file
 
 review_max_rounds: 5
 review_exit_rule: "连续 2 轮无新增 P0/P1"

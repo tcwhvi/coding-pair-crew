@@ -7,8 +7,7 @@
 检查项：
   1. roles[].requires 是否被 model_groups/模型 modalities 覆盖（vision 等）
   2. 外部 IDE（qoder/mimo/workbuddy）是否在 CDP 端口上可发现
-  3. CLI 工位（trae）是否装好；Trae 不走 CDP，走 `trae-cn chat`
-  4. model_groups 非空字段是否已填
+  3. model_groups 非空字段是否已填
 
 退出码：0 全过；1 有阻断项；2 配置/依赖错误。
 """
@@ -21,11 +20,6 @@ import sys
 import urllib.request
 
 sys.stdout.reconfigure(encoding="utf-8")
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-try:
-    from send_trae import find_cli as _find_trae
-except Exception:  # vendored 单文件场景：没有 send_trae 就当 CLI 检测不可用
-    _find_trae = None
 
 PORT_RANGE = range(9222, 9236)
 UA_KEYS = {
@@ -37,10 +31,6 @@ UA_KEYS = {
 }
 # 能力 → 声明位置：role.requires 或 model_groups 键名
 CAP_VISION = {"vision", "image_read", "image"}
-# CLI 工位：不走 CDP，按可执行文件 / 子命令探测
-CLI_KEYS = {
-    "trae": "trae-cn / Trae CN.exe（chat 子命令）",
-}
 
 
 def load_routing(path: str) -> dict:
@@ -109,23 +99,11 @@ def discover_ide() -> dict:
     return found
 
 
-def discover_cli() -> dict:
-    found = {}
-    for name in CLI_KEYS:
-        if name == "trae":
-            try:
-                found[name] = bool(_find_trae and _find_trae())
-            except Exception:
-                found[name] = False
-    return found
-
-
-def check(routing: dict) -> tuple[list[dict], dict, dict]:
+def check(routing: dict) -> list[dict]:
     issues = []
     groups = routing.get("model_groups") or {}
     roles = routing.get("roles") or {}
     ide = discover_ide()
-    cli = discover_cli()
 
     for gname, gval in groups.items():
         if gval in ("", None):
@@ -153,25 +131,8 @@ def check(routing: dict) -> tuple[list[dict], dict, dict]:
                 "msg": f"角色 {rname} 需要 vision/image_read，但 model={model!r} 不是 vision 绑定",
             })
 
-        # CLI 工位在线（trae：不走 CDP，走 chat 子命令）
-        if tool in CLI_KEYS or runtime == "cli":
-            t = tool or "trae"
-            if t not in CLI_KEYS:
-                issues.append({
-                    "level": "warn",
-                    "code": "TOOL_UNKNOWN",
-                    "msg": f"角色 {rname} 的 CLI tool={t!r} 不在已知集合 {list(CLI_KEYS)}",
-                })
-            elif not cli.get(t):
-                issues.append({
-                    "level": "error",
-                    "code": "TOOL_OFFLINE",
-                    "msg": f"角色 {rname} 依赖 {t}，但未找到 {CLI_KEYS[t]}；"
-                           "装 Trae 或设 TRAE_CLI 指向 bin\\trae-cn.cmd",
-                })
-
         # 外部 IDE 在线
-        elif runtime == "external-ide" or tool in UA_KEYS:
+        if runtime == "external-ide" or tool in UA_KEYS:
             t = tool or ""
             if t in UA_KEYS and t not in ide:
                 issues.append({
@@ -197,13 +158,13 @@ def check(routing: dict) -> tuple[list[dict], dict, dict]:
                 "msg": f"角色 {rname} reasoning={reasoning!r} 不在常见档位集合",
             })
 
-    if not ide and not any(cli.values()):
+    if not ide:
         issues.append({
             "level": "warn",
             "code": "NO_IDE",
-            "msg": "未发现任何外部 IDE（Qoder/MiMo/WorkBuddy）或 CLI 工位（Trae）；可退回 actor/会话",
+            "msg": "未发现任何外部 IDE（Qoder/MiMo/WorkBuddy）；可退回 actor/会话",
         })
-    return issues, ide, cli
+    return issues, ide
 
 
 def main() -> int:
@@ -222,7 +183,7 @@ def main() -> int:
         print(f"routing_check: 解析失败 {e}")
         return 2
 
-    issues, ide, cli = check(routing)
+    issues, ide = check(routing)
     errors = [i for i in issues if i["level"] == "error"]
     warns = [i for i in issues if i["level"] == "warn"]
 
@@ -230,14 +191,12 @@ def main() -> int:
         print(json.dumps({
             "ok": not errors,
             "ide": ide,
-            "cli": cli,
             "errors": errors,
             "warns": warns,
         }, ensure_ascii=False, indent=2))
     else:
         print("== routing_check ==")
         print("IDE:", json.dumps(ide, ensure_ascii=False))
-        print("CLI:", json.dumps(cli, ensure_ascii=False))
         for i in errors:
             print(f"[ERROR] {i['code']}: {i['msg']}")
         for i in warns:

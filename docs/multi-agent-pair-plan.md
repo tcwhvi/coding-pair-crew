@@ -1,6 +1,6 @@
 # 多 Agent Pair 开发 — 详细规划
 
-> 目标：多个 agent 扮演不同角色，以「结对 / 协作」方式完成开发；不同角色可用不同模型、不同 agent 工具（MiMo Desktop、Qoder、WorkBuddy、Trae、Claude Code 等）。
+> 目标：多个 agent 扮演不同角色，以「结对 / 协作」方式完成开发；不同角色可用不同模型、不同 agent 工具（MiMo Desktop、Qoder、WorkBuddy、Claude Code 等）。
 >
 > 本文是落地蓝图：能力盘点 → 角色与配对 → 工作区隔离 → 通信协议 → 工具/模型绑定 → 实施路线 → 风险。
 
@@ -22,7 +22,6 @@
 |---|---|---|
 | 跨会话通信 | MiMo Desktop `session-chat` / `talk_to_session` | 会话即「同事」，可互相请示、讨论、接力 |
 | 外部 IDE 派发 | `~/.agents/skills/external-review/` 的 `review_dispatch.py` / `read_review_replies.py` | 把任务发给 Qoder / WorkBuddy / MiMo IDE，读回结果 |
-| Trae 派发 | `skills/pair-crew/scripts/send_trae.py`（`trae-cn chat` 子命令） | 不需要 CDP 端口；用 cwd 定位项目，读回靠 `--result-file` 契约文件 |
 | CDP 自动化 | 同 skill 的 `cdp.py` | 维护对各 IDE 的 DOM 选择器，保证派发可用 |
 | 会话内子代理 | MiMo `actor` (explore / general) | 并行侦察、实现、复审；不占用户可见会话 |
 | 外部 CLI Agent | `contacts` 里的 Claude Code 等 | 长任务、独立上下文、headless 交付 |
@@ -341,8 +340,8 @@ stateDiagram-v2
 | 角色 | 优先工具 | 备选 | 模型倾向 | 推理档 | 备注 |
 |---|---|---|---|---|---|
 | Architect | MiMo Desktop 主会话 | Claude Code | 强推理/长上下文 | high–xhigh | 要看全局 |
-| Implementer | Qoder 或 WorkBuddy | Trae（CLI chat）/ MiMo actor(general) | 强代码模型 | medium–high | 按仓库语言选擅长者 |
-| Reviewer | 独立 MiMo 会话 / WorkBuddy | Qoder / Trae | 批判性强、爱挑刺的模型 | high | **换模型**做对抗审 |
+| Implementer | Qoder 或 WorkBuddy | MiMo actor(general) | 强代码模型 | medium–high | 按仓库语言选擅长者 |
+| Reviewer | 独立 MiMo 会话 / WorkBuddy | Qoder | 批判性强、爱挑刺的模型 | high | **换模型**做对抗审 |
 | QA | MiMo actor + 脚本 | WorkBuddy | 稳、服从指令 | medium | 重执行 |
 | Integrator | MiMo 主会话 | Claude Code | 稳、谨慎 | high | 只合入不创新 |
 | 侦察/检索 | MiMo actor(explore) | — | 快 | low–medium | 只读 |

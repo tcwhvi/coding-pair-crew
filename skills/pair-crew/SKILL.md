@@ -1,15 +1,14 @@
 # pair-crew — 多 Agent 结对班组（agent 无关）
 
 > **pair-crew**（结对班组）：多个 agent 分角色结对开发——有人实现、有人写测试、有人评审。  
-> **任何 agent 都能当指挥**：MiMo Desktop、Claude Code、Codex、Trae、WorkBuddy、ZCode、用户自定义 agent……只要能读本目录、跑 Python3、发 prompt。  
-> **而且可以互相调用**：今天 Trae 指挥 Qoder，明天 Qoder 指挥 Trae；每个参与者都既能当主持人，也能当工位。
+> **任何 agent 都能当指挥**：MiMo Desktop、Claude Code、Codex、WorkBuddy、ZCode、用户自定义 agent……只要能读本目录、跑 Python3、发 prompt。
 
 ## 谁能用
 
 | 角色 | 用什么 | 说明 |
 |---|---|---|
-| **指挥 Conductor** | 本 `SKILL.md` | **不限产品**。Claude Code / Codex / MiMo / Trae / 自定义 CLI agent 均可 |
-| **工位 Worker** | 只收派发 prompt | Qoder / Qoder CN / WorkBuddy / ZCode / Trae / 任意 agent 会话 |
+| **指挥 Conductor** | 本 `SKILL.md` | **不限产品**。Claude Code / Codex / MiMo / 自定义 CLI agent 均可 |
+| **工位 Worker** | 只收派发 prompt | Qoder / Qoder CN / WorkBuddy / ZCode / 任意 agent 会话 |
 | **脚本 Scripts** | `scripts/*.py` | 纯 Python3 + 标准库（CDP 处复用 `websocket-client`）；与 agent 无关 |
 | **契约 Contracts** | `contracts/**` | 人与 agent 共用的事实源 |
 
@@ -20,7 +19,6 @@
 | **Claude Code** | 把 `skills/pair-crew/` 拷到 `~/.claude/skills/pair-crew/` 或项目 `.claude/skills/pair-crew/`；或在 CLAUDE.md 写「服从 pair-crew 流程」 |
 | **Codex** | 放到项目内并在 AGENTS.md / 项目说明里引用本 SKILL.md |
 | **MiMo** | 项目 `skills/pair-crew/` 或引擎 skill 目录 |
-| **Trae** | 在 Trae 里读本 `SKILL.md` 即可当指挥；被派发用 `send_trae.py`（自带 `chat` 子命令，不需要调试端口） |
 | **自定义 / CLI agent** | 设定「工作前先读 `SKILL.md` + `templates/`」；脚本用 `python` 调用即可 |
 | **多指挥协作** | 同一仓库只保留一份契约与 BOARD；指挥可换人，**不要复制多份 contracts** |
 
@@ -40,7 +38,6 @@
    - 用户已明确授权「按此执行」的同类动作可在授权范围内连续执行；**新开的歧义/需求问题仍要问**
 7. **【硬性】派发后核对读回**含真实路径；读不到多半是工作区或权限问题
 8. **【硬性】外部 agent 默认随机两个**：pair / review / QA 等需要其他 agent 时，**从当前可用池里随机抽 2 个**即可——不按优先级挑、不铺满；**用户点名了工具或数量，就按用户说的来**（没说到的部分仍按默认：2 个、随机）。同一次派发沿用这组，失败换替补、不加人；抽完仍按第 6 条向用户确认
-9. **【硬性】调用是双向的**：每个 agent 既能当指挥，也能当工位。Trae 可以派给 Qoder / ZCode / WorkBuddy；Qoder / ZCode / WorkBuddy 也可以派给 Trae（`send_trae.py`）。不许把某个工具固定成「只会听令」或「只会指挥」——换谁当主持人都得能走完整流程
 
 ## 流程分层：哪些恒做、哪些看条件
 
@@ -145,26 +142,7 @@ python skills/pair-crew/scripts/send_zcode.py --port 9224 \
 # WorkBuddy / 其他（external-review 派发器）
 python ~/.agents/skills/external-review/scripts/review_dispatch.py \
   --to workbuddy --project-name <项目名> --project-path <绝对路径> --text-file prompt.md
-
-# Trae（CLI chat，不走 CDP；读回靠结果文件）
-python skills/pair-crew/scripts/send_trae.py \
-  --project-path <绝对路径> --text-file prompt.md \
-  --result-file contracts/<task_id>/review/P1-trae.md --wait
 ```
-
-> **⚠ Trae 通道状态：已接线，本机未打通（2026-10-29 实测）**
-> 环境：Trae CN `3.4.9` + 内置 cli `1.107.1`。
-> 现象：`send_trae.py` 能找到 CLI、命令退出码 0、脚本打印 SENT，但**两个 Trae 窗口都不接**——
-> IDE 的对话面板仍停在「与 AI 对话」占位、Agent（任务列表）窗口没有新任务、结果文件始终不出现。
-> 五次尝试结果一致：`-m agent --add-file`（冷启动）、`-n -m ask`、先 `cli.js -r <项目>` 再 `chat -r -m agent`、
-> 把 Agent 窗口置前后再 `chat -r -m agent`、不带附件的最小 `chat -m ask -r`。
-> 另外 `chat -r` 有一次把窗口重置成空工作区（项目丢失），要再跑 `cli.js -r <项目>` 找回来。
-> Trae 的聊天库是加密的（`ModularData/ai-agent/database.db` 打不开：`file is not a database`），
-> 所以没有第二条读回通道，只能靠结果文件。
->
-> 用法约束：这条通道只当「已接线、未验证」。派发后**必须去 Trae 窗口肉眼确认对话/任务真的出现了**，
-> 确认不了就不要把它算进两个评审里，改用 Qoder / ZCode。首次使用还会弹
-> 「是否信任此文件夹中的文件的作者？」，必须用户本人点，agent 不得模拟点击。
 
 > **⚠ 归属门禁（真实事故）**：`send_zcode.py` / `send_qoder.py` 的旧逻辑只检查
 > 「侧栏文本里含不含这个项目名」，含就发到**当前打开的会话**。
@@ -181,7 +159,7 @@ python skills/pair-crew/scripts/send_trae.py \
 
 #### 【硬性】派发对象：默认随机两个
 
-- **候选池**：`routing_check.py` 通过、且当前能派发的工具（qoder / qoder_cn / workbuddy / zcode / trae / mimo / claude-code / codex…）加上可用的本地 actor；每次现算，不用旧名单。`trae` 按 CLI 探测，不需要调试端口
+- **候选池**：`routing_check.py` 通过、且当前能派发的工具（qoder / qoder_cn / workbuddy / zcode / mimo / claude-code / codex…）加上可用的本地 actor；每次现算，不用旧名单
 - **默认随机抽 2 个**（用 `random.sample`，不要按列表顺序固定挑）；不足 2 个就有几个派几个，并在回复里说明
 - **用户点名优先**：用户点名了工具或数量，就按用户说的来；没说到的部分仍按默认（2 个、随机）
 - **不因「多派一个更稳」加到 3 个以上**；要扩人由用户点名
@@ -200,11 +178,6 @@ python ~/.agents/skills/external-review/scripts/read_review_replies.py \
   --only qoder --tail 8000 --project-path <绝对路径>
 # 或直接读 Worker UI / 其输出目录
 ```
-
-> **Trae 的读回不一样**：它的聊天库（`ModularData/ai-agent/database.db`）不是明文 SQLite，
-> `collect_review.py` 读不了，也不要用 CDP 抓页面猜。派发时带
-> `--result-file contracts/<id>/review/P1-trae.md --wait`，让它在文件里写判定，
-> 脚本轮询这个文件。没有结果文件的 Trae 派发 = 没读回，不能收口。
 
 ### 6.5 同一会话续写 / 催收尾
 
@@ -226,9 +199,6 @@ python skills/pair-crew/scripts/send_followup.py --port 9224 --ide zcode \
 > 原因是它的会话切换在侧栏点不到、于是退回按页面文本判断，判断失败就当没发。
 > **不要据此重发**。判定是否发出去只看两件事：目标会话数据库里出现这条 user 消息；
 > 或 `collect_review.py --session <id>` 能看到新结论。确认没进去再考虑重发。
-
-> **Trae 没有 CDP 续写**：`trae-cn chat` 每次是一条新 chat。要补指令就再派一次
-> （同样带结果文件），或者在 Trae 窗口里手动接着发；不要把「再派一次」当成同一轮续写。
 
 > **⚠ 坑 1：会话身份不能看页面文本**
 > `document.body.innerText` 包含整个侧栏，按文本匹配会把侧栏里**别的会话名**当成当前会话。
@@ -391,7 +361,6 @@ python skills/pair-crew/scripts/collect_review.py --wait --session <session_id> 
 |---|---|---|---|
 | **在 IDE 里新建项目 / 打开文件夹** | ZCode「新项目」、Qoder「打开文件夹」都弹**原生文件夹对话框**，CDP 只能操作渲染进程内的 DOM，碰不到系统对话框 | `ide_guard.py --ide <x> --path <路径>` 判断有没有绑定，没有就列出现有目录 | 「请在 ZCode 侧栏点『新项目』→ 选 `D:\...`，这一步是系统对话框我点不到；建好我马上重派」 |
 | **授予「完全访问」** | 权限弹窗由安全机制拦截，模拟点击等于绕过用户授权 | 能检测当前是不是「完全访问」 | 「请在那个任务里点『完全访问』，否则它读不到目标目录」 |
-| **Trae 首次信任文件夹 / 登录** | `trae-cn chat` 只负责把 prompt 交给 Trae；信任与登录弹窗在 Trae 窗口里，CLI 点不到 | `send_trae.py` 能发起并等结果文件 | 「请在 Trae 窗口里点『信任』并确认已登录，然后我重派」 |
 | **点排队消息的「插话 / 立即」** | 只有在 agent 生成中才出现，文案还因 IDE 而异 | `send_followup.py` 会自己找并点（ZCode=`立即`，Qoder=`插话`） | 脚本点完仍失败才需要用户：「消息卡在队列里，请手动点气泡上的『插话』」 |
 | **Story 需求确认与冻结** | 需求边界、任务拆分、测试用例必须由人拍板 | 只能拿证据出问题清单 + 倾向性建议 | 一次性呈报（读到的现状 / 目标 / 有锚点的问题 / 拆分草案 / 用例草案 / 风险） |
 | **每次外部工具派发前的确认** | 花的是用户的额度、占的是用户的 IDE | 能准备好 prompt 和参数 | 「我要派给 Qoder CN（端口 9222），项目 `X`，路径 `Y`，新建任务，只读评审 —— 确认？」 |
@@ -416,7 +385,6 @@ python skills/pair-crew/scripts/collect_review.py --wait --session <session_id> 
 | `scripts/ide_guard.py` | **按绝对路径**核对 IDE 里的项目绑定（派发前必跑） |
 | `scripts/send_qoder.py` | Qoder CN / 国际版派发（指定 CDP 端口，**新建任务**） |
 | `scripts/send_zcode.py` | ZCode 派发（**新建任务**） |
-| `scripts/send_trae.py` | Trae 派发（**CLI chat**，无需 CDP；`--result-file` 读回） |
 | `scripts/send_followup.py` | **同一会话续写**；会话归属校验 + 自动点「插话/立即」把排队消息插队 |
 | `scripts/collect_review.py` | 从 IDE 数据库读回判定；`--wait` 阻塞到判定出现（**收工前必跑**） |
 | `templates/*` | HANDOFF / ROUTING / STORY_KICKOFF / DISPATCH_CHECKLIST / contracts |

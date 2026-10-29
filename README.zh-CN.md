@@ -4,7 +4,7 @@
 
 一个人写实现，一个人写测试，另一个人负责挑问题；需求没确认之前，先别开工。
 
-pair-crew 是一套给多个 AI agent 用的协作规矩。它不绑定某个产品，也不要求你换工具：Claude Code、Codex、MiMo、Trae 可以当指挥，Qoder、Qoder CN、WorkBuddy、ZCode、Trae 可以当工位。角色是固定的，角色背后用什么工具可以换；而且调用是双向的——Trae 能派给 Qoder，Qoder 也能派给 Trae。
+pair-crew 是一套给多个 AI agent 用的协作规矩。它不绑定某个产品，也不要求你换工具：Claude Code、Codex、MiMo 可以当指挥，Qoder、Qoder CN、WorkBuddy、ZCode 可以当工位。角色是固定的，角色背后用什么工具可以换。
 
 它想解决的问题很具体：几个 AI 会话同时做一个仓库，别互相踩；别把聊天记录当需求；别让实现和测试各写各的；别让评审一直改下去；也别让 UI 只停留在“截图看起来还行”。
 
@@ -191,7 +191,6 @@ skills/pair-crew/
     ide_guard.py            # 按绝对路径核对项目绑定（派发前必跑）
     send_qoder.py           # Qoder 参考适配器（CDP）
     send_zcode.py           # ZCode 参考适配器（CDP）
-    send_trae.py            # Trae 参考适配器（CLI chat；结果文件读回）
     send_followup.py        # 向运行中的会话续写；校验会话归属并点掉排队按钮
     collect_review.py       # 从 IDE 数据库读回判定；--wait 阻塞到判定出现
 docs/
@@ -240,15 +239,10 @@ contracts/
 | 能读文件、跑 Python 的指挥 | 直接用 `SKILL.md` |
 | 本地会话或子代理 | 指挥在隔离 worktree 里起角色，给 prompt 文件和契约路径 |
 | 外部 GUI IDE（Qoder、ZCode、WorkBuddy 等） | 用 CDP 适配器发 prompt 文件并读回结果；先核对工作区、绝对路径和访问权限 |
-| Trae（Trae CN / Trae） | `send_trae.py` 调自带 `chat` 子命令，按 `--project-path` 当 cwd 发起；不需要调试端口。聊天库加密，读回用 `--result-file` 结果文件 |
 | CLI agent（Claude Code、Codex 等） | 在 worktree 里 headless 跑，喂契约包 |
 | 人 | 确认启动单、批准派发、裁决 P0、合入 |
 
 `send_qoder.py` 和 `send_zcode.py` 是参考适配器，不是协议本身。它们通过 CDP 驱动 IDE 界面，并从 `external-review` skill（或 vendored 副本）加载本地 `cdp.py`。GUI 选择器很脆，IDE 一改版就要修，或者退回人工派发。契约流程本身不依赖适配器。
-
-`send_trae.py` 不是 CDP 适配器：它调 Trae 自带的 `chat` 子命令，用 `--project-path` 当工作目录发起会话，所以不需要调试端口。代价是读回方式不同——Trae 的聊天库是加密的，不能像 Qoder/ZCode 那样直接读，派发时要带 `--result-file`，让 Trae 把判定写进契约目录，脚本轮询这个文件。这也意味着 Trae 的续写不是「同一会话插话」，而是再派一轮。
-
-> **状态：未验证（2026-10-29）。** 本机实测（Trae CN 3.4.9 + 内置 cli 1.107.1）：CLI 退出码 0、脚本打印 SENT，但两个 Trae 面都不接——IDE 对话面板停在「与 AI 对话」占位、Agent 任务列表没有新任务、结果文件不出现；五次尝试（`-m agent --add-file`、`-n -m ask`、`cli.js -r <项目>` + `chat -r -m agent`、Agent 窗口置前、不带附件的最小 `chat -m ask -r`）结果一致。`chat -r` 还曾把窗口重置成空工作区（要再打开项目）。聊天库是加密的，没有第二条读回通道。这条通道按「已接线、未验证」用：派发后必须去 Trae 窗口肉眼确认对话/任务真的出现了，再把它算进两个评审里。
 
 ### 两个会静默搞砸派发的 CDP 坑
 

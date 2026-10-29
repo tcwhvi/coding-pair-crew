@@ -61,9 +61,8 @@
 
 ## 脚本/环境自检
 
-- [ ] `routing_check.py` 无 ERROR（含 VISION_REQUIRED / IDE_OFFLINE / TOOL_OFFLINE）
+- [ ] `routing_check.py` 无 ERROR（含 VISION_REQUIRED / IDE_OFFLINE）
 - [ ] CDP 端口可发现该 IDE（9222–9235）
-- [ ] CLI 工位可用：`routing_check` 的 `CLI.trae=true`（`trae-cn` 在 PATH 或设了 `TRAE_CLI`）
 - [ ] 该工作区在 IDE 侧已存在（否则先注册，如 Qoder `workspaces` 表）
 - [ ] 目标 IDE 无进行中任务（避免抢占）
 
@@ -92,9 +91,6 @@
   只给打开时的快照 → 新消息永远读不到（实测：真实 44 条，读到 14 条）
 - 消息**条数不变 ≠ 没有新结论**：Qoder 在同一条 assistant 消息上原地改写，
   要看最后一条的 `updated_at` 和正文
-- **Trae 没有可读的会话库**（`ModularData/ai-agent/database.db` 加密）：
-  派发时必须带 `--result-file`，让它把判定写进契约目录，`send_trae.py --wait` 轮询文件；
-  没等到文件就是没读回
 
 ## 【硬性】续写消息后必须确认没在排队
 
@@ -117,7 +113,6 @@
 | IDE | 完全访问 | 自动化现状 |
 |---|---|---|
 | WorkBuddy | 「允许完全访问」按钮 | `review_dispatch` 可点；失败则人工；新工作区需重启后可搜 |
-| Trae | 首次信任文件夹 / 登录 | `send_trae.py` 调 `trae-cn chat` 发起；信任与登录弹窗需人工；读回靠 `--result-file` |
 | Qoder CN / 国际版 | 任务内文件访问确认 | **当前多靠人工点**；工作区可写 `main.sqlite` workspaces 表后 reload UI |
 | ZCode | 「完全访问」开关 + 信任文件夹 | 项目创建含原生文件夹框，建议**人工建一次项目**；发消息可用 `send_zcode.py` |
 | MiMo IDE | 项目已加入则较顺 | 待实践 |
