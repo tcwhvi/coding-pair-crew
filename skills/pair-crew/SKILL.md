@@ -8,7 +8,7 @@
 | 角色 | 用什么 | 说明 |
 |---|---|---|
 | **指挥 Conductor** | 本 `SKILL.md` | **不限产品**。Claude Code / Codex / MiMo / 自定义 CLI agent 均可 |
-| **工位 Worker** | 只收派发 prompt | Qoder / Qoder CN / WorkBuddy / ZCode / 任意 agent 会话 |
+| **工位 Worker** | 只收派发 prompt | Qoder / Qoder CN / WorkBuddy / ZCode / Trae / 任意 agent 会话 |
 | **脚本 Scripts** | `scripts/*.py` | 纯 Python3 + 标准库（CDP 处复用 `websocket-client`）；与 agent 无关 |
 | **契约 Contracts** | `contracts/**` | 人与 agent 共用的事实源 |
 
@@ -142,7 +142,27 @@ python skills/pair-crew/scripts/send_zcode.py --port 9224 \
 # WorkBuddy / 其他（external-review 派发器）
 python ~/.agents/skills/external-review/scripts/review_dispatch.py \
   --to workbuddy --project-name <项目名> --project-path <绝对路径> --text-file prompt.md
+
+# Trae（CDP，和 Qoder/ZCode 同一套思路）
+python skills/pair-crew/scripts/send_trae.py --port 9226 \
+  --project-path <绝对路径> --text-file prompt.md \
+  --result-file contracts/<task_id>/review/P1-trae.md --wait
 ```
+
+> **⚠ Trae 必须带调试端口启动，否则 CDP 连不上**
+>
+> ```bat
+> :: 先清掉 ELECTRON_RUN_AS_NODE：带着它启动，exe 会以 Node 模式运行、直接退出、不起窗口
+> set ELECTRON_RUN_AS_NODE=
+> "E:\Programs\Trae CN\Trae CN.exe" --remote-debugging-port=9226 "D:\projects\xxx"
+> ```
+>
+> - Trae 的 `chat` 子命令在本机（Trae CN 3.4.9 / cli 1.107.1）实测注不进对话：退出码 0，
+>   但面板不出现、消息不落，Agent 任务列表也不新增。所以适配器走 CDP，不走 CLI。
+> - `send_trae.py` 会按**窗口标题**核对目标目录，标题里没有项目名就拒发；
+>   聊天库是加密的（`ModularData/ai-agent/database.db` 打不开），读回只能靠 `--result-file`。
+> - 续写和别的 CDP 通道不同：再发一条消息就是往**同一个对话**里追加，不需要另开任务。
+> - 首次使用会弹「是否信任此文件夹中的文件的作者？」，必须用户本人点。
 
 > **⚠ 归属门禁（真实事故）**：`send_zcode.py` / `send_qoder.py` 的旧逻辑只检查
 > 「侧栏文本里含不含这个项目名」，含就发到**当前打开的会话**。
@@ -362,6 +382,7 @@ python skills/pair-crew/scripts/collect_review.py --wait --session <session_id> 
 | **在 IDE 里新建项目 / 打开文件夹** | ZCode「新项目」、Qoder「打开文件夹」都弹**原生文件夹对话框**，CDP 只能操作渲染进程内的 DOM，碰不到系统对话框 | `ide_guard.py --ide <x> --path <路径>` 判断有没有绑定，没有就列出现有目录 | 「请在 ZCode 侧栏点『新项目』→ 选 `D:\...`，这一步是系统对话框我点不到；建好我马上重派」 |
 | **授予「完全访问」** | 权限弹窗由安全机制拦截，模拟点击等于绕过用户授权 | 能检测当前是不是「完全访问」 | 「请在那个任务里点『完全访问』，否则它读不到目标目录」 |
 | **点排队消息的「插话 / 立即」** | 只有在 agent 生成中才出现，文案还因 IDE 而异 | `send_followup.py` 会自己找并点（ZCode=`立即`，Qoder=`插话`） | 脚本点完仍失败才需要用户：「消息卡在队列里，请手动点气泡上的『插话』」 |
+| **Trae 首次信任文件夹 / 登录** | 信任弹窗在 Trae 窗口里，CDP 只能点渲染进程内的 DOM，碰它等于绕过用户授权 | `send_trae.py` 能检测到输入框、发不出就是被挡住 | 「请在 Trae 窗口里点『信任文件夹并继续』并确认已登录，然后我重派」 |
 | **Story 需求确认与冻结** | 需求边界、任务拆分、测试用例必须由人拍板 | 只能拿证据出问题清单 + 倾向性建议 | 一次性呈报（读到的现状 / 目标 / 有锚点的问题 / 拆分草案 / 用例草案 / 风险） |
 | **每次外部工具派发前的确认** | 花的是用户的额度、占的是用户的 IDE | 能准备好 prompt 和参数 | 「我要派给 Qoder CN（端口 9222），项目 `X`，路径 `Y`，新建任务，只读评审 —— 确认？」 |
 | **评审超轮次 / 双方结论对立** | 属于裁决，不是技术问题 | 能并列两份结论和分歧点 | 「两轮下来 P0 还在，冲突点是 X，你来定」 |
@@ -385,6 +406,7 @@ python skills/pair-crew/scripts/collect_review.py --wait --session <session_id> 
 | `scripts/ide_guard.py` | **按绝对路径**核对 IDE 里的项目绑定（派发前必跑） |
 | `scripts/send_qoder.py` | Qoder CN / 国际版派发（指定 CDP 端口，**新建任务**） |
 | `scripts/send_zcode.py` | ZCode 派发（**新建任务**） |
+| `scripts/send_trae.py` | Trae 派发（**CDP**，需带 `--remote-debugging-port` 启动；`--result-file` 读回） |
 | `scripts/send_followup.py` | **同一会话续写**；会话归属校验 + 自动点「插话/立即」把排队消息插队 |
 | `scripts/collect_review.py` | 从 IDE 数据库读回判定；`--wait` 阻塞到判定出现（**收工前必跑**） |
 | `templates/*` | HANDOFF / ROUTING / STORY_KICKOFF / DISPATCH_CHECKLIST / contracts |

@@ -198,6 +198,7 @@ skills/pair-crew/
     ide_guard.py            # verify a project is bound to an absolute path (run before dispatch)
     send_qoder.py           # reference CDP adapter for Qoder
     send_zcode.py           # reference CDP adapter for ZCode
+    send_trae.py            # reference CDP adapter for Trae (result-file readback)
     send_followup.py        # follow-up into a running session; verifies session, clicks queue button
     collect_review.py       # read verdicts from the IDE DB; --wait blocks until one appears
 docs/
@@ -245,11 +246,13 @@ contracts/
 |---|---|
 | A conductor that can read files and run Python | Use `SKILL.md` directly |
 | Local sessions or subagents | Conductor spawns a role in an isolated worktree with a prompt file and contract paths |
-| External GUI IDE (Qoder, ZCode, WorkBuddy, etc.) | A CDP adapter sends the prompt file and reads the result back; verify workspace, absolute path, and access first |
+| External GUI IDE (Qoder, ZCode, WorkBuddy, Trae, etc.) | A CDP adapter sends the prompt file and reads the result back; verify workspace, absolute path, and access first |
 | CLI agent (Claude Code, Codex, etc.) | Run it headless inside the worktree with the contract package |
 | A human | Confirms the kickoff, approves dispatches, arbitrates P0s, merges |
 
 `send_qoder.py` and `send_zcode.py` are reference adapters, not the protocol. They drive the IDE's UI over CDP and load a local `cdp.py` helper from the `external-review` skill (or a vendored copy). GUI selectors are brittle; when an IDE changes its UI, fix the adapter or dispatch manually. The contract flow does not depend on the adapter.
+
+`send_trae.py` is the same shape for Trae. Two things are Trae-specific: it must be started with `--remote-debugging-port` (and with `ELECTRON_RUN_AS_NODE` cleared, otherwise the launcher runs in Node mode and exits without opening a window), and its chat store is encrypted, so readback goes through `--result-file` rather than an IDE database. Its CLI `chat` subcommand does not work on Trae CN 3.4.9 / cli 1.107.1 — the command exits 0 but nothing lands in the panel — which is why the adapter drives the DOM instead. Follow-ups are simply another message in the same chat.
 
 ### Two CDP pitfalls that silently corrupt a dispatch
 

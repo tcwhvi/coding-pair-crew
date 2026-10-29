@@ -191,6 +191,7 @@ skills/pair-crew/
     ide_guard.py            # 按绝对路径核对项目绑定（派发前必跑）
     send_qoder.py           # Qoder 参考适配器（CDP）
     send_zcode.py           # ZCode 参考适配器（CDP）
+    send_trae.py            # Trae 参考适配器（CDP；结果文件读回）
     send_followup.py        # 向运行中的会话续写；校验会话归属并点掉排队按钮
     collect_review.py       # 从 IDE 数据库读回判定；--wait 阻塞到判定出现
 docs/
@@ -238,11 +239,13 @@ contracts/
 |---|---|
 | 能读文件、跑 Python 的指挥 | 直接用 `SKILL.md` |
 | 本地会话或子代理 | 指挥在隔离 worktree 里起角色，给 prompt 文件和契约路径 |
-| 外部 GUI IDE（Qoder、ZCode、WorkBuddy 等） | 用 CDP 适配器发 prompt 文件并读回结果；先核对工作区、绝对路径和访问权限 |
+| 外部 GUI IDE（Qoder、ZCode、WorkBuddy、Trae 等） | 用 CDP 适配器发 prompt 文件并读回结果；先核对工作区、绝对路径和访问权限 |
 | CLI agent（Claude Code、Codex 等） | 在 worktree 里 headless 跑，喂契约包 |
 | 人 | 确认启动单、批准派发、裁决 P0、合入 |
 
 `send_qoder.py` 和 `send_zcode.py` 是参考适配器，不是协议本身。它们通过 CDP 驱动 IDE 界面，并从 `external-review` skill（或 vendored 副本）加载本地 `cdp.py`。GUI 选择器很脆，IDE 一改版就要修，或者退回人工派发。契约流程本身不依赖适配器。
+
+`send_trae.py` 是 Trae 的同款适配器。Trae 有两处特殊：一是必须带 `--remote-debugging-port` 启动，并且启动前要清掉 `ELECTRON_RUN_AS_NODE`（带着它，启动器会以 Node 模式运行、直接退出、不起窗口）；二是它的聊天库加密，读回只能走 `--result-file`，不能像 Qoder/ZCode 那样查库。Trae 自带的 `chat` 子命令在 Trae CN 3.4.9 / cli 1.107.1 上不生效（退出码 0，但面板里什么都没有），所以适配器改成直接操作 DOM。续写就是往同一个对话里再发一条消息。
 
 ### 两个会静默搞砸派发的 CDP 坑
 

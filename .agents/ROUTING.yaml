@@ -17,7 +17,7 @@ roles:
 
   implementer:
     runtime: external-ide
-    tool: qoder                # qoder | qoder_cn | workbuddy | zcode | claude-code | codex | ...
+    tool: qoder                # qoder | qoder_cn | workbuddy | zcode | trae | claude-code | codex | ...
     model: code
     reasoning: high
     context_style: files
@@ -60,6 +60,7 @@ implementer_tool_order:
   - qoder_cn
   - workbuddy
   - zcode
+  - trae        # 需带 --remote-debugging-port 启动，见 send_trae.py
 
 review_max_rounds: 5
 review_exit_rule: "连续 2 轮无新增 P0/P1"

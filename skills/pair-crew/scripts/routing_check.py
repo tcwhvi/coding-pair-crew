@@ -28,6 +28,7 @@ UA_KEYS = {
     "mimo": "XiaomiMiMo",
     "workbuddy": "WorkBuddy",
     "zcode": "ZCode",
+    "trae": "TraeCN",
 }
 # 能力 → 声明位置：role.requires 或 model_groups 键名
 CAP_VISION = {"vision", "image_read", "image"}
