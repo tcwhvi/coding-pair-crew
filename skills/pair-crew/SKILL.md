@@ -139,7 +139,12 @@ python skills/pair-crew/scripts/send_qoder.py --port 9222 \
 python skills/pair-crew/scripts/send_zcode.py --port 9224 \
   --project-name <项目名> --project-path <绝对路径> --text-file prompt.md
 
-# WorkBuddy / 其他（external-review 派发器）
+# WorkBuddy（CDP，本仓库自带适配器；带 --result-file 读回）
+python skills/pair-crew/scripts/send_workbuddy.py --port 9228 \
+  --project-path <绝对路径> --text-file prompt.md \
+  --result-file contracts/<task_id>/review/P1-workbuddy.md --new-task --wait
+
+# WorkBuddy / 其他（external-review 派发器，若装了那个 skill）
 python ~/.agents/skills/external-review/scripts/review_dispatch.py \
   --to workbuddy --project-name <项目名> --project-path <绝对路径> --text-file prompt.md
 
@@ -407,6 +412,8 @@ python skills/pair-crew/scripts/collect_review.py --wait --session <session_id> 
 | `scripts/send_qoder.py` | Qoder CN / 国际版派发（指定 CDP 端口，**新建任务**） |
 | `scripts/send_zcode.py` | ZCode 派发（**新建任务**） |
 | `scripts/send_trae.py` | Trae 派发（**CDP**，需带 `--remote-debugging-port` 启动；`--result-file` 读回） |
+| `scripts/launch_trae_cdp.cmd` | 带调试端口启动 Trae（会先清 `ELECTRON_RUN_AS_NODE`；Trae 必须先完全退出） |
+| `scripts/send_workbuddy.py` | WorkBuddy 派发（**CDP**；`--new-task` 另起任务，`--result-file` 读回） |
 | `scripts/send_followup.py` | **同一会话续写**；会话归属校验 + 自动点「插话/立即」把排队消息插队 |
 | `scripts/collect_review.py` | 从 IDE 数据库读回判定；`--wait` 阻塞到判定出现（**收工前必跑**） |
 | `templates/*` | HANDOFF / ROUTING / STORY_KICKOFF / DISPATCH_CHECKLIST / contracts |
