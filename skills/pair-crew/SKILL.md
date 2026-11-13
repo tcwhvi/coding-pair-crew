@@ -1,6 +1,6 @@
 ---
 name: pair-crew
-description: "多 Agent 结对开发协议：需求先确认，契约先于代码。只要用户要求写新代码、加功能、修改现有代码、修 bug、重构、补测试、调整接口 / UI / 脚本（implement / add / fix / refactor / modify），就必须加载本技能并先出启动确认单，不需要用户点名 pair-crew。显式说 /pair-crew、结对开发、多 agent 车间、一人实现一人测试时同样适用。不适用于纯问答、只读查代码 / 查日志、写文档、整理表格与闲聊；小改动走轻量档，不等于要开全套多 agent 派发。触发后第一动作是需求确认，不是直接动手改代码。"
+description: "多 Agent 结对开发协议：需求先确认，契约先于代码。用户要求写新代码、加功能、改代码、修 bug、重构、补测试、调接口 / UI / 脚本（implement/add/fix/refactor/modify）时必须加载并先出启动确认单，无需点名 pair-crew；显式说 /pair-crew、结对开发、多 agent 车间同样适用。不适用于纯问答、只读查代码、写文档、闲聊。触发≠开工：确认后才动手；小改动走轻量档。"
 ---
 
 # pair-crew — 多 Agent 结对班组（agent 无关）

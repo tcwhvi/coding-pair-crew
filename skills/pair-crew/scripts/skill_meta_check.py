@@ -9,6 +9,7 @@
   1. 文件以 YAML frontmatter 开头，name / description 非空
   2. description 覆盖「写新代码 / 改现有代码」这类意图，而不是只写产品名和命令
   3. 没有禁用「模型自动调用」的开关（disable-model-invocation / user_invocable_only 等）
+  4. description ≤ 250 字符：ZCode 每轮只注入前 250 字符，超出的约束模型看不到
 
 退出码：0 全过；1 有阻断项；2 文件 / 解析错误。
 只能检查元数据，不能证明宿主真的加载了它 —— 实际验证要新开会话提一句不点名的改码需求。
@@ -88,6 +89,10 @@ def main() -> int:
     hits = sorted({w for w in INTENT_WORDS if w.lower() in desc.lower()})
     add("写码意图覆盖", len(hits) >= 3,
         "命中 %d 个：%s（至少 3 个）" % (len(hits), "、".join(hits) or "无"))
+
+    # ZCode 每轮注入的是 description 前 250 字符；超出部分（例如「触发≠开工」）等于没写
+    add("ZCode 注入额度（≤250 字符）", len(desc) <= 250,
+        "当前 %d 字符%s" % (len(desc), ("，被截掉：" + desc[250:]) if len(desc) > 250 else "，完整可注入"))
 
     disabled = []
     for k, v in meta.items():
