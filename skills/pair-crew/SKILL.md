@@ -1,3 +1,8 @@
+---
+name: pair-crew
+description: "多 Agent 结对开发协议：需求先确认，契约先于代码。只要用户要求写新代码、加功能、修改现有代码、修 bug、重构、补测试、调整接口 / UI / 脚本（implement / add / fix / refactor / modify），就必须加载本技能并先出启动确认单，不需要用户点名 pair-crew。显式说 /pair-crew、结对开发、多 agent 车间、一人实现一人测试时同样适用。不适用于纯问答、只读查代码 / 查日志、写文档、整理表格与闲聊；小改动走轻量档，不等于要开全套多 agent 派发。触发后第一动作是需求确认，不是直接动手改代码。"
+---
+
 # pair-crew — 多 Agent 结对班组（agent 无关）
 
 > **pair-crew**（结对班组）：多个 agent 分角色结对开发——有人实现、有人写测试、有人评审。  
@@ -19,10 +24,64 @@
 | **Claude Code** | 把 `skills/pair-crew/` 拷到 `~/.claude/skills/pair-crew/` 或项目 `.claude/skills/pair-crew/`；或在 CLAUDE.md 写「服从 pair-crew 流程」 |
 | **Codex** | 放到项目内并在 AGENTS.md / 项目说明里引用本 SKILL.md |
 | **MiMo** | 项目 `skills/pair-crew/` 或引擎 skill 目录 |
+| **WorkBuddy** | `~/.workbuddy/skills/pair-crew/`（用户级）或项目 `.workbuddy/skills/pair-crew/` |
 | **自定义 / CLI agent** | 设定「工作前先读 `SKILL.md` + `templates/`」；脚本用 `python` 调用即可 |
 | **多指挥协作** | 同一仓库只保留一份契约与 BOARD；指挥可换人，**不要复制多份 contracts** |
 
-触发：`/pair-crew`、「pair 开发 / 结对 / 多 agent 车间 / 一人实现一人测试」。
+## 自动触发（默认，无需点名）
+
+**本 skill 对所有「要写代码 / 要改代码」的请求默认生效**，不是只在你点名 `pair-crew` 时才用。
+宿主在会话开始时只注入 frontmatter 的 `name` + `description`，命中意图才加载全文：用户说
+「加个功能 / 把这个改成 X / 修一下这个 bug / 重构这段 / 补个测试 / 调整接口 / 改下 UI」就算命中，
+不需要出现技能名。
+
+| 请求类型 | 是否触发 | 说明 |
+|---|---|---|
+| 新需求、加功能、改现有逻辑、修 bug、重构、补测试、改接口 / UI / 脚本 | **触发** | 无论有没有点名 skill，也无论改动多小 |
+| 明确说 `/pair-crew`、结对开发、多 agent 车间、一人实现一人测试 | **触发** | 显式声明，兼容保留 |
+| 已冻结 Story 后续的「继续 / 改吧 / 按这个做」 | **触发** | 沿用同一份契约，不重开需求确认 |
+| 纯问答、只读查代码 / 查日志 / 看报错、写文档、整理表格、闲聊 | 不触发 | 不动代码就不出动班组 |
+| 用户明确说「别走流程，直接改」 | 不触发 | 用户显式覆盖；回复里注明跳过了门禁 |
+
+拿不准就按**触发**处理：多问一句比默默改错代码便宜。
+
+**触发 ≠ 开工。** 命中后第一动作永远是 §0 的启动确认单（有项目证据锚点的问题 + 一页纸
+SPEC / examples），用户确认后才冻结、才允许动手。自动触发改的是「要不要读这份协议」，
+不是「要不要先确认需求」——§0 硬门禁一个字都不变。
+
+**轻重分流**按「流程分层」表执行，不新造状态机：
+
+- **轻量档**（单文件、单写者、纯逻辑小改）：一页纸契约 + 开工记基线 + 提交前分类；
+  不建 worktree、不跑 `routing_check`、不派外部 IDE。
+- **完整档**（有第二个写者 / 跨模块 / 涉及 UI / 需要独立评审）：走 §1–§9，含派发与读回。
+- 两档都躲不掉五条硬规则，尤其是**改完即作废**：改一次代码，上一轮判定作废，必须补一轮。
+
+### 宿主怎么让它自动生效
+
+1. 把 `skills/pair-crew/` 放进**宿主会扫描的 skills 目录**，不是随手放在仓库某个子目录里
+   （常见：`~/.claude/skills/`、项目 `.claude/skills/`、`~/.workbuddy/skills/`、
+   项目 `.workbuddy/skills/`；其他宿主按各自文档）。**不要复制多份 SKILL.md**，
+   要跨仓库用就放一个真身、其余用链接或常驻规则引用。
+2. **不要删 frontmatter，不要加 `disable-model-invocation: true` / 「仅用户可调用」之类的开关**
+   —— 加了就等于退回「只有显式声明才调用」。
+3. 宿主不扫描 skills 目录、只认常驻指令时：把 `templates/AGENTS_RULE.md` 的内容贴进
+   `CLAUDE.md` / `AGENTS.md` / 项目说明 / 用户规则；宿主若支持「用户提交提示词」钩子，
+   按宿主文档注入同一段规则。两种挂法不要同时注入，否则同一轮会加载两遍。
+4. 改过 frontmatter 后**新开一个会话**：元数据是会话开始时注入的，老会话看不到新描述。
+
+自检：`python skills/pair-crew/scripts/skill_meta_check.py`
+
+### 不自动触发时怎么排查
+
+| 现象 | 多半是 |
+|---|---|
+| 会话的技能列表里根本没有 pair-crew | 没放进宿主 skills 目录，或该目录不被扫描 |
+| 列表里有，但说「改个按钮」没反应 | `description` 只写了产品名 / 命令，没写「何时用」；或被设成仅用户可调用 |
+| 只在说 `/pair-crew` 时生效 | 同上，命中靠用户点名而不是意图匹配 |
+| 换了描述仍不生效 | 会话是改之前开的，重新开一个 |
+
+验证方法：直接说「把这个按钮改成蓝色，顺手补个测试」，**不点名 skill**。
+如果它先出启动确认单而不是直接改代码，就是生效了。
 
 ## 核心原则
 
@@ -407,6 +466,7 @@ python skills/pair-crew/scripts/collect_review.py --wait --session <session_id> 
 
 | 脚本 | 用途 |
 |---|---|
+| `scripts/skill_meta_check.py` | 自检 frontmatter 能否被宿主自动识别（改过触发规则后跑一次） |
 | `scripts/routing_check.py` | 能力与 IDE 门禁 |
 | `scripts/ide_guard.py` | **按绝对路径**核对 IDE 里的项目绑定（派发前必跑） |
 | `scripts/send_qoder.py` | Qoder CN / 国际版派发（指定 CDP 端口，**新建任务**） |

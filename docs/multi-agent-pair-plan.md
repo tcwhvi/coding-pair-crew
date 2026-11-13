@@ -510,7 +510,7 @@ coding_skill/
     multi-agent-pair-plan.md      # 本文
   skills/
     pair-crew/
-      SKILL.md                    # 触发词：pair 开发 / 多 agent 结对 / 车间模式
+      SKILL.md                    # frontmatter（自动触发意图）+ 指挥协议
       prompts/
         architect.md
         implementer.md
@@ -525,10 +525,15 @@ coding_skill/
       templates/
         HANDOFF.md
         ROUTING.yaml
+        AGENTS_RULE.md            # 宿主不扫描 skills 目录时的常驻规则兜底
         contracts/
 ```
 
-**触发方式**：`/pair-crew` 或「用结对模式 / pair-crew 做 XX」。Skill 名 **pair-crew**（结对班组）。
+**触发方式**：默认自动触发——用户提「写新代码 / 改代码 / 加功能 / 修 bug / 重构 / 补测试」即命中
+SKILL.md frontmatter 的 `description`，不需要点名 skill；`/pair-crew` 与「用结对模式做 XX」
+保留为显式写法。2026-11-13 之前本文写的是「只靠显式触发」，那是把意图匹配的活推给了用户，
+实测表现为「不点名就不调用」，故改为默认触发；协议主流程与 §0 需求确认门禁没有变，
+变的只是「什么时候读这份协议」。宿主挂法与排查见 `skills/pair-crew/SKILL.md` 的「自动触发」一节。
 
 **Skill 主流程**：
 

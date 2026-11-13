@@ -9,6 +9,8 @@ __pycache__/
 worktrees/
 # 本地派发调试脚本（可留源码，忽略缓存）
 skills/pair-crew/scripts/__pycache__/
+# 本地工作区记忆 / 会话数据（不进公开仓库）
+.workbuddy/
 # 会话内草稿
 contracts/**/drafts/
 .DS_Store

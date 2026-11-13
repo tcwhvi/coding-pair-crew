@@ -191,9 +191,11 @@ These are not suggestions. A conductor that silently fills in a missing requirem
 
 ```text
 skills/pair-crew/
-  SKILL.md                  # conductor protocol and trigger words
+  SKILL.md                  # frontmatter (auto-trigger intent) + conductor protocol
   templates/                # kickoff, handoff, routing, dispatch checklist, contract templates
+    AGENTS_RULE.md          # standing-rule snippet for hosts that do not scan skills dirs
   scripts/
+    skill_meta_check.py     # verify the frontmatter is auto-discoverable
     routing_check.py        # capability and IDE gate
     ide_guard.py            # verify a project is bound to an absolute path (run before dispatch)
     send_qoder.py           # reference CDP adapter for Qoder
@@ -214,7 +216,7 @@ contracts/
 
 ## Quick start(Just send the repository address to the agent so they can install it and tell you how to use it, then ignore the following content (●'◡'●).
 
-1. **Put the skill where your conductor can read it.** Use the repository as-is, copy `skills/pair-crew/` into your project's agent skills directory, or reference `SKILL.md` from `AGENTS.md` / `CLAUDE.md`.
+1. **Put `skills/pair-crew/` in a directory your host actually scans for skills** (`~/.claude/skills/`, project `.claude/skills/`, `~/.workbuddy/skills/`, etc.), not just somewhere in the repository. Keep the frontmatter and do not set a "user-invocable only" switch, or the skill can only be reached by naming it. For hosts that do not scan skills directories, paste `templates/AGENTS_RULE.md` into `AGENTS.md` / `CLAUDE.md` / user rules.
 
 2. **Copy the templates you need.**
 
@@ -238,7 +240,33 @@ contracts/
 
    Exit code `0` means no blocking issue. Warnings are visible but do not block. Python 3 is enough; PyYAML is recommended, with a minimal fallback parser for simple files.
 
-5. **Start a story.** Tell the conductor: `Use pair-crew for this story: ...`. It should produce a kickoff draft and wait for your confirmation. If it starts editing code before that, stop it.
+5. **Just state the request — naming the skill is no longer required.** For example: `Change that button to blue and add a test`. The conductor should produce a kickoff draft and wait for confirmation; if it edits code first, stop it. `Use pair-crew for this story: ...` still works, but is no longer a precondition.
+
+## Auto-trigger and troubleshooting
+
+This skill fires on **every request to write or change code**, whether or not the user names it.
+Hosts inject only `name` + `description` from the frontmatter at session start and load the full
+`SKILL.md` when the intent matches. So "only works when I name it" is a metadata or install-path
+problem, not a model problem:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| pair-crew is absent from the skill list | It sits in a repo subdirectory, not a scanned skills directory | Install it into the host's skills directory (step 1) |
+| It is listed, but `change that button` does nothing | Older `SKILL.md` had no frontmatter, and its body only named commands / product terms (`/pair-crew`, pair, crew) instead of saying **when to use it** | Use the new `SKILL.md`; keep the frontmatter, do not add `disable-model-invocation` or a user-invocable-only switch |
+| Works only when named | Same as above: no intent words to match | Same as above |
+| Still not firing after the description changed | Metadata is injected when a session starts | Start a new session |
+
+Self-check:
+
+```bash
+python skills/pair-crew/scripts/skill_meta_check.py
+```
+
+Verify by saying `Change that button to blue and add a test` **without naming the skill**.
+It fires if a kickoff draft appears before any edit; editing directly means it did not.
+Auto-trigger changes *whether the protocol is read*, not *whether requirements are confirmed*:
+the §0 kickoff gate is unchanged, and small edits take the lightweight path rather than a full
+multi-agent dispatch.
 
 ## Connecting agents
 

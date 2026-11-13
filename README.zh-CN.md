@@ -184,9 +184,11 @@ roles:
 
 ```text
 skills/pair-crew/
-  SKILL.md                  # 指挥协议和触发词
+  SKILL.md                  # frontmatter（自动触发意图）+ 指挥协议
   templates/                # 启动单、交接包、路由、派发清单、契约模板
+    AGENTS_RULE.md          # 常驻规则片段（给不扫描 skills 目录的宿主）
   scripts/
+    skill_meta_check.py     # 自检 frontmatter 能否被宿主自动识别
     routing_check.py        # 能力和 IDE 门禁
     ide_guard.py            # 按绝对路径核对项目绑定（派发前必跑）
     send_qoder.py           # Qoder 参考适配器（CDP）
@@ -207,7 +209,7 @@ contracts/
 
 ## 怎么开始（直接把仓库地址发给 agent，让他安装并告诉你如何使用，然后忽略下面内容 (●'◡'●)）
 
-1. 把 skill 放到指挥能读到的地方。直接用本仓库，或者把 `skills/pair-crew/` 拷进项目的 agent skills 目录，也可以在 `AGENTS.md` / `CLAUDE.md` 里引用 `SKILL.md`。
+1. 把 `skills/pair-crew/` 放进**宿主会扫描的 skills 目录**（`~/.claude/skills/`、项目 `.claude/skills/`、`~/.workbuddy/skills/` 等），不是随手放在仓库子目录里。frontmatter 不要删、不要加「仅用户可调用」开关，否则只能靠点名触发。宿主不认 skills 目录时，把 `templates/AGENTS_RULE.md` 贴进 `AGENTS.md` / `CLAUDE.md` / 用户规则兜底。
 
 2. 拷模板：
 
@@ -231,7 +233,30 @@ contracts/
 
    退出码 `0` 表示没有阻断项。警告会显示，但不拦。Python 3 就够；推荐装 PyYAML，简单文件有内置的极简解析兜底。
 
-5. 对指挥说：`用 pair-crew 做这个 Story：……`。它应该先出启动确认单，等你确认。如果它没确认就开始改代码，叫停。
+5. **直接提需求就行，不用点名 skill**：「把这个按钮改成蓝色，顺手补个测试」。它应该先出启动确认单，等你确认；如果它没确认就开始改代码，叫停。显式说 `用 pair-crew 做这个 Story：……` 仍然可用，但不再是前提。
+
+## 自动触发与排查
+
+这个 skill 默认对**所有写代码 / 改代码的请求**生效。宿主在会话开始时只注入 `SKILL.md`
+frontmatter 的 `name` + `description`，命中意图才加载全文。所以「不点名就不调用」不是模型偷懒，
+是元数据或安装位置没让它看见这个 skill：
+
+| 现象 | 原因 | 怎么修 |
+|---|---|---|
+| 技能列表里根本没有 pair-crew | 只放在仓库的 `skills/` 子目录，没进宿主扫描目录 | 拷进宿主 skills 目录（见第 1 步） |
+| 列表里有，说「改个按钮」没反应 | 旧版没有 frontmatter，正文只写了 `/pair-crew`、结对、车间这类**产品名 / 命令**，没有「何时用」 | 用新版 `SKILL.md`；别删 frontmatter，别加 `disable-model-invocation` / 仅用户可调用开关 |
+| 只在点名时生效 | 同上，意图匹配无词可命中 | 同上 |
+| 换了描述仍不生效 | 元数据是会话开始时注入的 | 新开一个会话 |
+
+自检：
+
+```bash
+python skills/pair-crew/scripts/skill_meta_check.py
+```
+
+验证：**不点名**说一句「把这个按钮改成蓝色，顺手补个测试」。生效的表现是先出启动确认单、
+等你确认才动手；直接改代码就是没触发。自动触发改的是「要不要读协议」，不是「要不要确认需求」
+——§0 需求确认门禁一个字没变；小改动走轻量档，不会因此开全套多 agent 派发。
 
 ## 怎么接不同 agent
 
